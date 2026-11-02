@@ -1,0 +1,152 @@
+/* ==========================================================================
+   Apexly — componentes propios (calendario, checklist, rachas, festejos)
+   ========================================================================== */
+
+.link-btn { background: none; border: 0; cursor: pointer; padding: 0; }
+.fa-logo-mark { color: #fff; }
+.fa-logo-mark svg path:last-child { fill: var(--primary); }
+
+/* ------------------------------------------------------------ racha */
+.streak-flame { width: 48px; height: 48px; flex: none; border-radius: 14px; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); }
+.streak-flame.on { background: linear-gradient(135deg, var(--primary), var(--primary-2)); color: #fff; box-shadow: 0 10px 26px color-mix(in oklab, var(--primary) 40%, transparent); }
+.streak-value { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; font-family: var(--font-display); font-weight: 600; font-size: 22px; letter-spacing: -0.02em; margin-top: 4px; }
+.badge-level { background: var(--primary-soft); color: var(--primary); }
+
+.progress-goal { position: relative; overflow: visible; }
+.progress-goal > span { border-radius: 999px; }
+.progress-goal > span.ok { background: var(--ok); }
+.progress-goal > i { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--text); opacity: 0.55; border-radius: 2px; }
+
+/* ------------------------------------------------------------ calendario */
+.cal-title { text-transform: capitalize; font-size: 20px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.cal-head { margin-bottom: 6px; }
+.cal-head span { text-align: center; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+
+.cal-day {
+  position: relative; aspect-ratio: 1 / 1; min-height: 44px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--text); cursor: pointer; padding: 6px; display: flex; flex-direction: column;
+  align-items: center; justify-content: space-between; transition: transform 0.2s, border-color 0.2s, background 0.2s;
+}
+.cal-day:hover { transform: translateY(-2px); border-color: var(--primary); }
+.cal-num { font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+.cal-dots { display: flex; gap: 3px; height: 6px; }
+.cal-dots i { width: 6px; height: 6px; border-radius: 50%; }
+
+.cal-day.st-rest { background: transparent; color: var(--muted); }
+.cal-day.st-complete { background: var(--ok-soft); border-color: color-mix(in oklab, var(--ok) 45%, transparent); }
+.cal-day.st-complete .cal-num { color: var(--ok); }
+.cal-day.st-partial { background: var(--warn-soft); border-color: color-mix(in oklab, var(--warn) 45%, transparent); }
+.cal-day.st-missed { background: var(--danger-soft); border-color: color-mix(in oklab, var(--danger) 35%, transparent); }
+.cal-day.st-planned, .cal-day.st-pending { background: var(--surface); }
+.cal-day.is-today { box-shadow: 0 0 0 2px var(--primary); border-color: var(--primary); }
+.cal-day.is-today .cal-num { color: var(--primary); }
+.cal-day.is-selected { background: var(--text); color: var(--bg); border-color: var(--text); }
+.cal-day.is-selected .cal-num { color: var(--bg); }
+
+.cal-key { width: 12px; height: 12px; border-radius: 4px; display: inline-block; border: 1px solid var(--line); }
+.cal-key.st-complete { background: var(--ok-soft); border-color: var(--ok); }
+.cal-key.st-partial { background: var(--warn-soft); border-color: var(--warn); }
+.cal-key.st-missed { background: var(--danger-soft); border-color: var(--danger); }
+.cal-key.is-today { border: 2px solid var(--primary); }
+
+/* ------------------------------------------------------------ checklist */
+.checklist { display: flex; flex-direction: column; gap: 6px; }
+.check-row {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 12px 14px;
+  border-radius: 12px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; transition: border-color 0.2s, background 0.2s;
+}
+.check-row:hover:not(.readonly) { border-color: var(--primary); }
+.check-row input { position: absolute; opacity: 0; pointer-events: none; }
+.check-row:focus-within { box-shadow: 0 0 0 3px var(--primary-soft); }
+.check-box { width: 24px; height: 24px; border-radius: 8px; border: 2px solid var(--line); display: grid; place-items: center; color: #fff; transition: all 0.2s; }
+.check-row.checked .check-box { background: var(--ok); border-color: var(--ok); animation: pop 0.3s cubic-bezier(0.22, 0.8, 0.3, 1); }
+.check-row.checked .check-name { text-decoration: line-through; color: var(--muted); }
+.check-row.readonly { cursor: default; }
+.check-row.missed .check-box { border-color: color-mix(in oklab, var(--danger) 60%, transparent); }
+.check-name { display: block; font-weight: 600; font-size: 15px; overflow-wrap: anywhere; }
+.check-detail { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+@keyframes pop { 0% { transform: scale(0.7); } 60% { transform: scale(1.15); } 100% { transform: scale(1); } }
+
+/* ------------------------------------------------------------ rutinas */
+.routine-card { border-left: 3px solid var(--rc); }
+.week-strip { display: flex; gap: 6px; margin-bottom: 12px; }
+.week-strip span { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--muted); }
+.week-strip span.on { background: var(--rc, var(--primary)); color: #fff; }
+.item-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.item-list li { padding-left: 4px; }
+.item-list li span + span { margin-left: 8px; font-size: 13px; }
+
+.day-picker { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.day-picker button { height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-weight: 700; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+.day-picker button.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.color-dot { width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--bg); box-shadow: 0 0 0 1px var(--line); cursor: pointer; }
+.color-dot.on { box-shadow: 0 0 0 2px var(--text); }
+
+.item-edit { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 10px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.item-edit-fields { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 8px; }
+.item-edit-actions { display: flex; gap: 4px; }
+.icon-mini { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+.icon-mini:hover:not(:disabled) { color: var(--text); border-color: var(--primary); }
+.icon-mini:disabled { opacity: 0.35; cursor: default; }
+.icon-mini.danger:hover { color: var(--danger); border-color: var(--danger); }
+@media (max-width: 520px) {
+  .item-edit-fields { grid-template-columns: minmax(0, 1fr); }
+  .item-edit-actions { flex-direction: column; }
+}
+
+/* ------------------------------------------------------------ progreso */
+.ladder { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; align-items: end; }
+.ladder-step { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; padding: 14px 6px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; opacity: 0.6; }
+.ladder-step.on { opacity: 1; border-color: color-mix(in oklab, var(--primary) 45%, transparent); background: var(--primary-soft); }
+.ladder-step.next { opacity: 1; border-style: dashed; border-color: var(--primary); }
+.ladder-tri { width: 0; height: 0; border-left: 14px solid transparent; border-right: 14px solid transparent; border-bottom: 24px solid var(--muted); margin-bottom: 6px; opacity: 0.5; }
+.ladder-step.on .ladder-tri { border-bottom-color: var(--primary); opacity: 1; }
+.ladder-step:nth-child(1) .ladder-tri { transform: scale(0.7); }
+.ladder-step:nth-child(2) .ladder-tri { transform: scale(0.8); }
+.ladder-step:nth-child(3) .ladder-tri { transform: scale(0.9); }
+.ladder-step:nth-child(5) .ladder-tri { transform: scale(1.1); }
+.ladder-step:nth-child(6) .ladder-tri { transform: scale(1.2); }
+.ladder-step:nth-child(7) .ladder-tri { transform: scale(1.35); }
+@media (max-width: 720px) {
+  .ladder { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.entry-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.entry-form .input { width: auto; flex: 1 1 140px; }
+
+/* ------------------------------------------------------------ festejo */
+.celebrate-backdrop { z-index: 96; overflow: hidden; }
+.celebrate-card { overflow: hidden; max-width: 400px; text-align: center; padding: 34px 28px; display: flex; flex-direction: column; align-items: center; animation: celebrateIn 0.5s cubic-bezier(0.22, 0.8, 0.3, 1) both; }
+.celebrate-icon { width: 84px; height: 84px; border-radius: 26px; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, var(--primary), var(--primary-2)); box-shadow: 0 18px 40px color-mix(in oklab, var(--primary) 45%, transparent); animation: celebrateIcon 0.9s cubic-bezier(0.22, 0.8, 0.3, 1) both; }
+.celebrate-icon.logo svg path:last-child { fill: var(--primary); }
+.celebrate-title { font-size: 28px; margin-top: 14px; }
+.celebrate-confetti { position: absolute; inset: 0; pointer-events: none; }
+.celebrate-confetti span {
+  position: absolute; top: -20px; width: 0; height: 0;
+  border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 11px solid currentColor;
+  animation: confetti linear both;
+}
+@keyframes confetti { 0% { transform: translateY(0) rotate(0); opacity: 1; } 100% { transform: translateY(105vh) rotate(var(--r, 360deg)); opacity: 0.2; } }
+@keyframes celebrateIn { 0% { opacity: 0; transform: scale(0.85) translateY(20px); } 100% { opacity: 1; transform: none; } }
+@keyframes celebrateIcon { 0% { transform: scale(0.3) rotate(-30deg); } 60% { transform: scale(1.12) rotate(6deg); } 100% { transform: none; } }
+
+@media (max-width: 520px) {
+  .cal-grid { gap: 4px; }
+  .cal-day { border-radius: 10px; padding: 4px; min-height: 40px; }
+  .cal-num { font-size: 13px; }
+}
+#day-panel { scroll-margin-top: 80px; }
+
+/* ------------------------------------------------------------ actividades extra */
+:root, body[data-theme='light'] { --extra: #7c4dff; --extra-soft: rgba(124, 77, 255, 0.12); }
+body[data-theme='dark'] { --extra: #9b7bff; --extra-soft: rgba(155, 123, 255, 0.16); }
+.extra-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.extra-icon { width: 24px; height: 24px; flex: none; border-radius: 8px; display: inline-grid; place-items: center; background: var(--extra-soft); color: var(--extra); }
+.extra-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; border: 1px solid color-mix(in oklab, var(--extra) 35%, transparent); background: var(--extra-soft); }
+.extra-form { padding: 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); margin-top: 10px; }
+.extra-form-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 10px; }
+.cal-extra { position: absolute; top: 4px; right: 4px; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-bottom: 7px solid var(--extra); }
+.cal-key.key-extra { background: var(--extra-soft); border-color: var(--extra); }
+.badge-extra { background: var(--extra-soft); color: var(--extra); }
+.celebrate-icon.extra { background: linear-gradient(135deg, var(--extra), #c4b5fd); box-shadow: 0 18px 40px color-mix(in oklab, var(--extra) 45%, transparent); }
