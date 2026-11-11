@@ -151,24 +151,16 @@ body[data-theme='dark'] { --extra: #9b7bff; --extra-soft: rgba(155, 123, 255, 0.
 .badge-extra { background: var(--extra-soft); color: var(--extra); }
 .celebrate-icon.extra { background: linear-gradient(135deg, var(--extra), #c4b5fd); box-shadow: 0 18px 40px color-mix(in oklab, var(--extra) 45%, transparent); }
 
-/* ---------- contador de series */
-.check-item { display: flex; flex-direction: column; gap: 6px; }
+/* ---------- series: el cuadro del check cuenta las series (burbuja) */
 .item-edit-row { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 6px; }
 .item-sets { text-align: center; }
-.set-counter { display: flex; gap: 6px; align-items: stretch; }
-.set-tap { flex: 1; display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 14px; border-radius: 14px; border: 1.5px dashed color-mix(in oklab, var(--primary) 55%, var(--line)); background: var(--primary-soft); color: var(--text); cursor: pointer; font: inherit; text-align: left; transition: transform 0.1s, background 0.2s; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-.set-tap:active:not(:disabled) { transform: scale(0.98); }
-.set-tap:disabled { cursor: default; }
-.set-num { display: flex; flex-direction: column; font-weight: 700; font-size: 15px; min-width: 92px; }
-.set-num small { font-weight: 500; font-size: 11px; color: var(--muted); }
-.set-dots { flex: 1; display: flex; gap: 5px; flex-wrap: wrap; }
-.set-dots i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid color-mix(in oklab, var(--primary) 60%, var(--line)); transition: background 0.2s, transform 0.2s; }
-.set-dots i.on { background: var(--primary); border-color: var(--primary); transform: scale(1.08); }
-.set-of { font-weight: 700; color: var(--muted); font-size: 14px; }
-.set-counter.done .set-tap { border-style: solid; border-color: color-mix(in oklab, var(--ok) 55%, var(--line)); background: color-mix(in oklab, var(--ok) 12%, transparent); }
-.set-counter.done .set-dots i.on { background: var(--ok); border-color: var(--ok); }
-.set-counter.done .set-num { color: var(--ok); }
-.set-undo { width: 44px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font-size: 22px; font-weight: 700; cursor: pointer; }
+button.check-row { width: 100%; text-align: left; font: inherit; color: inherit; -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+button.check-row:disabled { cursor: default; opacity: 1; }
+button.check-row:focus-visible { box-shadow: 0 0 0 3px var(--primary-soft); outline: none; }
+button.check-row:active:not(:disabled) { transform: scale(0.99); }
+.check-box.counting { background: var(--primary); border-color: var(--primary); }
+.set-badge { font-size: 13px; font-weight: 800; color: #fff; line-height: 1; animation: pop 0.28s cubic-bezier(0.22, 0.8, 0.3, 1); }
+.set-progress { color: var(--primary); font-weight: 700; }
 
 /* ---------- elección (radio en tarjeta) */
 .choice { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; padding: 12px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--surface); cursor: pointer; font: inherit; color: var(--text); transition: border-color 0.2s, background 0.2s; }

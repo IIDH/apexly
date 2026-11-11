@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { IconCheck } from './Icons'
 
 // El avance de series vive en el teléfono (localStorage): es del momento del
 // entrenamiento. Lo que queda guardado en la base es el ejercicio completado.
@@ -19,45 +20,78 @@ const write = (itemId, iso, n) => {
 }
 
 /**
- * Contador de series: cada toque suma una serie; al llegar a la última marca el
- * ejercicio como hecho. "−" deshace la última serie.
+ * Ejercicio con series: cada toque suma una serie y el cuadro muestra cuántas
+ * llevas (como una burbuja de notificación). En la última se marca ✓.
+ * Mantener presionado resta una serie; tocar un ejercicio terminado lo desmarca.
  */
-export default function SetCounter({ itemId, iso, sets, checked, editable, onComplete, onUncomplete }) {
-  const [count, setCount] = useState(() => (checked ? sets : Math.min(read(itemId, iso), sets)))
+export default function SetCheckRow({ item, iso, checked, editable, missed, onToggle }) {
+  const sets = item.sets
+  const [count, setCount] = useState(() => (checked ? sets : Math.min(read(item.id, iso), sets)))
+  const press = useRef({ timer: null, long: false })
 
-  // Si el ejercicio se marca o desmarca desde el check, el contador lo sigue
+  // Si el ejercicio se marca o desmarca desde otro lado, el contador lo sigue
   useEffect(() => {
     if (checked) setCount(sets)
     else setCount((c) => (c >= sets ? 0 : c))
   }, [checked, sets])
-  useEffect(() => { write(itemId, iso, checked ? 0 : count) }, [itemId, iso, count, checked])
+  useEffect(() => { write(item.id, iso, checked ? 0 : count) }, [item.id, iso, count, checked])
 
-  function add() {
-    if (!editable || count >= sets) return
+  const buzz = (p) => navigator.vibrate?.(p)
+
+  function tap() {
+    if (press.current.long) {
+      press.current.long = false
+      return
+    }
+    if (!editable) return
+    if (checked) {
+      setCount(0)
+      return onToggle()
+    }
     const next = count + 1
     setCount(next)
-    if (navigator.vibrate) navigator.vibrate(next === sets ? [30, 60, 30] : 25)
-    if (next === sets) onComplete()
-  }
-  function undo() {
-    if (!editable || count === 0) return
-    if (checked) onUncomplete()
-    setCount(count - 1)
+    if (next >= sets) {
+      buzz([30, 60, 30])
+      onToggle()
+    } else buzz(20)
   }
 
-  const finished = count >= sets
+  // Mantener presionado: resta una serie (para corregir un toque de más)
+  function startPress() {
+    if (!editable || count === 0) return
+    press.current.timer = setTimeout(() => {
+      press.current.long = true
+      buzz(40)
+      if (checked) onToggle()
+      setCount((c) => Math.max(c - 1, 0))
+    }, 550)
+  }
+  const endPress = () => clearTimeout(press.current.timer)
+
+  const counting = count > 0 && !checked
   return (
-    <div className={`set-counter ${finished ? 'done' : ''}`}>
-      <button type="button" className="set-tap" onClick={add} disabled={!editable || finished} aria-label={finished ? 'Series completas' : `Marcar serie ${count + 1} de ${sets}`}>
-        <span className="set-num num">{finished ? '✓ Listo' : `Serie ${count + 1}`}<small>{finished ? '' : 'toca al terminarla'}</small></span>
-        <span className="set-dots" aria-hidden="true">
-          {Array.from({ length: sets }, (_, i) => <i key={i} className={i < count ? 'on' : ''} />)}
+    <button
+      type="button"
+      className={`check-row set-row ${checked ? 'checked' : ''} ${!editable ? 'readonly' : ''} ${missed ? 'missed' : ''}`}
+      onClick={tap}
+      onPointerDown={startPress}
+      onPointerUp={endPress}
+      onPointerLeave={endPress}
+      onPointerCancel={endPress}
+      onContextMenu={(e) => e.preventDefault()}
+      disabled={!editable}
+      aria-label={`${item.name}: ${checked ? 'completo' : `serie ${count} de ${sets}`}. Toca para sumar una serie.`}
+    >
+      <span className={`check-box ${counting ? 'counting' : ''}`} aria-hidden="true">
+        {checked ? <IconCheck size={14} /> : counting ? <b key={count} className="set-badge num">{count}</b> : null}
+      </span>
+      <span style={{ minWidth: 0 }}>
+        <span className="check-name">{item.name}</span>
+        <span className="check-detail">
+          {counting ? <b className="set-progress">{count} de {sets} series</b> : `${sets} series`}
+          {item.detail ? ` · ${item.detail}` : ''}
         </span>
-        <span className="set-of num">{count}/{sets}</span>
-      </button>
-      {count > 0 && editable && (
-        <button type="button" className="set-undo" onClick={undo} aria-label="Deshacer última serie">−</button>
-      )}
-    </div>
+      </span>
+    </button>
   )
 }

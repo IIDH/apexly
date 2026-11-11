@@ -302,7 +302,7 @@ function RoutineEditor({ initial, routines, plan, onDone, onCancel }) {
 
         <div className="field">
           <span className="label">Ejercicios (checklist)</span>
-          <span className="muted" style={{ fontSize: 12 }}>Si pones las series, en el día tendrás un contador: tocas al terminar cada serie y el ejercicio se marca solo al final.</span>
+          <span className="muted" style={{ fontSize: 12 }}>Si pones las series, en el día tocas el ejercicio una vez por cada serie que terminas; en la última se marca solo.</span>
           <div className="stack" style={{ gap: 8 }}>
             {form.items.map((it, idx) => (
               <div key={it.key} className="item-edit">

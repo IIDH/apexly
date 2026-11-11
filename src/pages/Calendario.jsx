@@ -1,4 +1,4 @@
-import SetCounter from '../components/SetCounter'
+import SetCheckRow from '../components/SetCounter'
 import { useMemo, useState } from 'react'
 import ExtraSection from '../components/ExtraSection'
 import PauseCard from '../components/PauseCard'
@@ -232,27 +232,18 @@ function DayPanel({ iso, routines, extras, done, today, toggle, onToday }) {
                   {items.map((item) => {
                     const checked = done.has(doneKey(item.id, iso))
                     return (
-                      <div key={item.id} className={`check-item ${item.sets ? 'has-sets' : ''}`}>
-                        <label className={`check-row ${checked ? 'checked' : ''} ${!editable ? 'readonly' : ''} ${isPast && !editable && !checked ? 'missed' : ''}`}>
+                      item.sets > 0 ? (
+                        <SetCheckRow key={item.id} item={item} iso={iso} checked={checked} editable={editable} missed={isPast && !editable && !checked} onToggle={() => onToggle(item.id)} />
+                      ) : (
+                        <label key={item.id} className={`check-row ${checked ? 'checked' : ''} ${!editable ? 'readonly' : ''} ${isPast && !editable && !checked ? 'missed' : ''}`}>
                           <input type="checkbox" checked={checked} disabled={!editable} onChange={() => onToggle(item.id)} />
                           <span className="check-box" aria-hidden="true">{checked && <IconCheck size={14} />}</span>
                           <span style={{ minWidth: 0 }}>
                             <span className="check-name">{item.name}</span>
-                            {(item.sets || item.detail) && <span className="check-detail">{[item.sets && `${item.sets} series`, item.detail].filter(Boolean).join(' · ')}</span>}
+                            {item.detail && <span className="check-detail">{item.detail}</span>}
                           </span>
                         </label>
-                        {item.sets > 0 && editable && (
-                          <SetCounter
-                            itemId={item.id}
-                            iso={iso}
-                            sets={item.sets}
-                            checked={checked}
-                            editable={editable}
-                            onComplete={() => !checked && onToggle(item.id)}
-                            onUncomplete={() => checked && onToggle(item.id)}
-                          />
-                        )}
-                      </div>
+                      )
                     )
                   })}
                 </div>
