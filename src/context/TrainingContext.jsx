@@ -23,6 +23,8 @@ export function TrainingProvider({ children }) {
   const [routines, setRoutines] = useState(null)
   const [goals, setGoals] = useState(null)
   const [extras, setExtras] = useState(null)
+  const [plans, setPlans] = useState([])
+  const [pauses, setPauses] = useState([])
   const [done, setDone] = useState(() => new Set())
   const [error, setError] = useState(null)
   const [today, setToday] = useState(todayISO)
@@ -41,19 +43,24 @@ export function TrainingProvider({ children }) {
   const load = useCallback(async () => {
     if (!user) return
     try {
-      const [r, s, i, g, e, x] = await Promise.all([
+      const [r, s, i, g, e, x, pl, pa] = await Promise.all([
         fetchAll(() => supabase.from('routines').select('*').order('created_at')),
         fetchAll(() => supabase.from('routine_schedules').select('*').order('valid_from')),
         fetchAll(() => supabase.from('routine_items').select('*').order('position')),
         fetchAll(() => supabase.from('goals').select('*').order('created_at')),
         fetchAll(() => supabase.from('goal_entries').select('*').order('measured_on')),
         // Si aún no se ejecutó 0002_extra_activities.sql, la app sigue funcionando sin extras
-        fetchAll(() => supabase.from('extra_activities').select('*').order('done_on')).catch(() => [])
+        fetchAll(() => supabase.from('extra_activities').select('*').order('done_on')).catch(() => []),
+        // Planes y pausas (0004_plans_pauses.sql): opcionales hasta correr la migración
+        fetchAll(() => supabase.from('plans').select('*').order('start_on')).catch(() => []),
+        fetchAll(() => supabase.from('pauses').select('*').order('start_on')).catch(() => [])
       ])
       const list = r.map((x) => ({
         ...x,
         schedules: s.filter((y) => y.routine_id === x.id),
-        items: i.filter((y) => y.routine_id === x.id)
+        items: i.filter((y) => y.routine_id === x.id),
+        // Cada rutina conoce las pausas para saber qué días no cuentan
+        pauses: pa
       }))
       const since = earliestStart(list)
       const c = since
@@ -62,6 +69,8 @@ export function TrainingProvider({ children }) {
       setRoutines(list)
       setGoals(g.map((x) => ({ ...x, entries: e.filter((y) => y.goal_id === x.id) })))
       setExtras(x)
+      setPlans(pl)
+      setPauses(pa)
       setDone(new Set(c.map((x) => doneKey(x.item_id, x.done_on))))
       setError(null)
     } catch (err) {
@@ -101,8 +110,8 @@ export function TrainingProvider({ children }) {
   const progress = useMemo(() => (routines ? progressHistory(routines, done, today) : null), [routines, done, today])
 
   const value = useMemo(
-    () => ({ routines, goals, extras, done, error, today, progress, reload: load, toggle }),
-    [routines, goals, extras, done, error, today, progress, load, toggle]
+    () => ({ routines, goals, extras, plans, pauses, done, error, today, progress, reload: load, toggle }),
+    [routines, goals, extras, plans, pauses, done, error, today, progress, load, toggle]
   )
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

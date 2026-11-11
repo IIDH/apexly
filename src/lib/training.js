@@ -67,17 +67,50 @@ export const currentWeekdays = (routine) => {
 
 export const itemActiveOn = (item, iso) => item.created_on <= iso && (!item.archived_on || iso < item.archived_on)
 
-/** Rutinas y ejercicios programados en una fecha: [{ routine, items }]. */
-export function planFor(routines, iso) {
+// ------------------------------------------------------------ pausas (lesión, enfermedad, vacaciones)
+export const PAUSE_REASONS = {
+  lesion: { label: 'Lesión', emoji: '🩹' },
+  enfermedad: { label: 'Enfermedad', emoji: '🤒' },
+  vacaciones: { label: 'Vacaciones', emoji: '🌴' },
+  otro: { label: 'Otro motivo', emoji: '⏸️' }
+}
+/** La pausa cubre la fecha (end_on es el último día de pausa; null = sin fecha de alta). */
+export const pauseCovers = (p, iso) => p.start_on <= iso && (!p.end_on || iso <= p.end_on)
+/** Pausas que dejan fuera la rutina completa en esa fecha. */
+const routinePausedBy = (r, iso) => (r.pauses ?? []).find((p) => pauseCovers(p, iso) && (p.scope === 'total' || p.routine_ids?.includes(r.id)))
+const itemPausedBy = (r, item, iso) => (r.pauses ?? []).find((p) => pauseCovers(p, iso) && p.scope === 'parcial' && p.item_ids?.includes(item.id))
+
+/**
+ * Rutinas y ejercicios programados en una fecha: [{ routine, items }].
+ * Lo que está en pausa no se programa (no cuenta para cumplimiento ni racha),
+ * salvo con { ignorePauses: true }.
+ */
+export function planFor(routines, iso, { ignorePauses = false } = {}) {
   const wd = weekdayOf(iso)
   const plan = []
   for (const r of routines) {
     const days = weekdaysOn(r, iso)
     if (!days?.includes(wd)) continue
-    const items = r.items.filter((i) => itemActiveOn(i, iso)).sort((a, b) => a.position - b.position)
+    if (!ignorePauses && routinePausedBy(r, iso)) continue
+    const items = r.items
+      .filter((i) => itemActiveOn(i, iso) && (ignorePauses || !itemPausedBy(r, i, iso)))
+      .sort((a, b) => a.position - b.position)
     if (items.length) plan.push({ routine: r, items })
   }
   return plan
+}
+
+/** Ejercicios que tocaban ese día pero quedaron en pausa, con la pausa que los cubre. */
+export function pausedOn(routines, iso) {
+  const out = []
+  for (const { routine, items } of planFor(routines, iso, { ignorePauses: true })) {
+    const whole = routinePausedBy(routine, iso)
+    for (const i of items) {
+      const p = whole ?? itemPausedBy(routine, i, iso)
+      if (p) out.push({ routine, item: i, pause: p })
+    }
+  }
+  return out
 }
 
 /** doneSet: Set de `${item_id}|${fecha}`. */
@@ -93,12 +126,14 @@ export function dayStats(routines, doneSet, iso) {
       if (doneSet.has(doneKey(i.id, iso))) done++
     }
   }
-  return { plan, total, done }
+  // Lo que tocaba pero quedó en pausa (solo para mostrarlo; no cuenta)
+  const paused = routines.some((r) => r.pauses?.length) ? pausedOn(routines, iso) : []
+  return { plan, total, done, paused }
 }
 
 /** Estado visual de un día en el calendario. */
 export function dayStatus(stats, iso, today = todayISO()) {
-  if (!stats.total) return 'rest'
+  if (!stats.total) return stats.paused?.length ? 'paused' : 'rest'
   if (stats.done === stats.total) return 'complete'
   if (iso > today) return 'planned'
   if (stats.done > 0) return 'partial'
@@ -184,3 +219,48 @@ export const extrasOn = (extras, iso) => extras.filter((e) => e.done_on === iso)
 
 /** Hito alcanzado justo al llegar a `count` actividades (o null). */
 export const extraMilestoneAt = (count) => (EXTRA_MILESTONES.includes(count) ? count : null)
+
+// ------------------------------------------------------------ planes
+/** Plan vigente o próximo (el activo que aún no se termina). */
+export function currentPlan(plans, today = todayISO()) {
+  const open = (plans ?? []).filter((p) => !p.ended_on).sort((a, b) => a.start_on.localeCompare(b.start_on))
+  return open.find((p) => p.start_on <= today) ?? open[0] ?? null
+}
+
+/** Semana del plan (1, 2, …) y total de semanas si tiene término. */
+export function planWeek(plan, today = todayISO()) {
+  if (today < plan.start_on) return null
+  const days = Math.round((fromISO(today) - fromISO(plan.start_on)) / 86400000)
+  const total = plan.end_on ? Math.ceil((Math.round((fromISO(plan.end_on) - fromISO(plan.start_on)) / 86400000) + 1) / 7) : null
+  return { week: Math.floor(days / 7) + 1, total }
+}
+
+/** Resumen de un plan entre su inicio y `upto`: cumplimiento, días completos, ejercicios. */
+export function planSummary(plan, routines, doneSet, upto = todayISO()) {
+  const own = routines.filter((r) => r.plan_id === plan.id)
+  const last = plan.end_on && plan.end_on < upto ? plan.end_on : upto
+  let scheduled = 0
+  let done = 0
+  let daysScheduled = 0
+  let daysComplete = 0
+  let pausedDays = 0
+  for (let iso = plan.start_on; iso <= last; iso = addDays(iso, 1)) {
+    const s = dayStats(own, doneSet, iso)
+    if (!s.total) {
+      if (s.paused.length) pausedDays++
+      continue
+    }
+    scheduled += s.total
+    done += s.done
+    daysScheduled++
+    if (s.done === s.total) daysComplete++
+  }
+  const days = last >= plan.start_on ? Math.round((fromISO(last) - fromISO(plan.start_on)) / 86400000) + 1 : 0
+  return { routines: own.length, scheduled, done, daysScheduled, daysComplete, pausedDays, days, weeks: Math.max(1, Math.ceil(days / 7)), ratio: scheduled ? done / scheduled : null }
+}
+
+/** Próximo lunes (o hoy si es lunes) como fecha de inicio sugerida. */
+export function nextMonday(today = todayISO()) {
+  const wd = weekdayOf(today)
+  return wd === 1 ? today : addDays(today, (8 - wd) % 7)
+}

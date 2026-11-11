@@ -101,8 +101,11 @@ export function DataCard() {
   async function exportData() {
     setBusy(true)
     try {
-      const tables = ['profiles', 'routines', 'routine_schedules', 'routine_items', 'completions', 'goals', 'goal_entries', 'extra_activities']
+      const tables = ['profiles', 'routines', 'routine_schedules', 'routine_items', 'completions', 'goals', 'goal_entries', 'extra_activities', 'plans', 'pauses']
       const results = await Promise.all(tables.map((t) => supabase.from(t).select('*')))
+      // Tablas de migraciones opcionales: si aún no existen, se exportan vacías
+      const optional = ['extra_activities', 'plans', 'pauses']
+      results.forEach((r, i) => { if (r.error && optional.includes(tables[i])) { r.error = null; r.data = [] } })
       const failed = results.find((r) => r.error)
       if (failed) throw failed.error
       const data = Object.fromEntries(tables.map((t, i) => [t, results[i].data]))

@@ -1,5 +1,7 @@
+import SetCounter from '../components/SetCounter'
 import { useMemo, useState } from 'react'
 import ExtraSection from '../components/ExtraSection'
+import PauseCard from '../components/PauseCard'
 import { Link } from 'react-router-dom'
 import { useCelebrate, useLevel } from '../components/Celebration'
 import { IconCheck, IconChevL, IconChevR, IconDumbbell, IconFlame, IconHistory, IconLock, IconPlus } from '../components/Icons'
@@ -8,10 +10,10 @@ import { useTraining } from '../context/TrainingContext'
 import { pct } from '../lib/format'
 import {
   MONTH_THRESHOLD, WEEK_ORDER, WEEKDAYS, addDays, canEditDate, dayStats, dayStatus, daysInMonth, doneKey,
-  fromISO, longDate, monthLabel, monthStart, remainingToMeet, shiftMonth
+  PAUSE_REASONS, fromISO, longDate, monthLabel, monthStart, remainingToMeet, shiftMonth
 } from '../lib/training'
 
-const STATUS_LABEL = { complete: 'Completo', partial: 'Incompleto', missed: 'No realizado', pending: 'Pendiente', planned: 'Programado', rest: 'Descanso' }
+const STATUS_LABEL = { complete: 'Completo', partial: 'Incompleto', missed: 'No realizado', pending: 'Pendiente', planned: 'Programado', rest: 'Descanso', paused: 'En pausa' }
 
 export default function Calendario() {
   const { routines, extras, done, today, toggle, progress, error } = useTraining()
@@ -33,6 +35,7 @@ export default function Calendario() {
       <div className="grid grid-main dc-rise" style={{ alignItems: 'start' }}>
         <div className="stack">
           <StreakCard progress={progress} routines={routines} />
+          <PauseCard />
           <MonthCalendar view={view} setView={setView} selected={selected} setSelected={selectDay} routines={routines} extras={extras} done={done} today={today} />
         </div>
         <DayPanel iso={selected} routines={routines} extras={extras} done={done} today={today} toggle={toggle} onToday={() => { setSelected(today); setView({ year: +today.slice(0, 4), month: +today.slice(5, 7) }) }} />
@@ -132,6 +135,7 @@ function MonthCalendar({ view, setView, selected, setSelected, routines, extras,
               aria-pressed={c.iso === selected}
             >
               {c.extras > 0 && <span className="cal-extra" aria-hidden="true" />}
+              {c.status === 'paused' && <span className="cal-pause" aria-hidden="true">{PAUSE_REASONS[c.stats.paused[0].pause.reason]?.emoji}</span>}
               <span className="cal-num">{c.day}</span>
               <span className="cal-dots">
                 {c.stats.plan.slice(0, 3).map(({ routine }) => <i key={routine.id} style={{ background: routine.color }} />)}
@@ -146,6 +150,7 @@ function MonthCalendar({ view, setView, selected, setSelected, routines, extras,
         <span className="legend-item"><span className="cal-key st-missed" />No realizado</span>
         <span className="legend-item"><span className="cal-key is-today" />Hoy</span>
         <span className="legend-item"><span className="cal-key key-extra" />Actividad extra</span>
+        {cells.some((c) => c?.status === 'paused') && <span className="legend-item"><span className="cal-key st-paused" />En pausa</span>}
       </div>
     </div>
   )
@@ -192,6 +197,12 @@ function DayPanel({ iso, routines, extras, done, today, toggle, onToday }) {
           <p className="muted" style={{ fontSize: 14, margin: '8px 0 18px' }}>Asígnale los días de la semana y aparecerá aquí cada vez que toque.</p>
           <Link to="/rutinas?nueva=1" className="btn dc-cta"><IconPlus size={16} /> Nueva rutina</Link>
         </div>
+      ) : !stats.plan.length && stats.paused.length ? (
+        <div className="empty" style={{ padding: '28px 8px' }}>
+          <div className="empty-icon" style={{ fontSize: 24 }}>{PAUSE_REASONS[stats.paused[0].pause.reason]?.emoji}</div>
+          <h3 style={{ fontSize: 18 }}>Día en pausa</h3>
+          <p className="muted" style={{ fontSize: 14, marginTop: 8 }}>{PAUSE_REASONS[stats.paused[0].pause.reason]?.label}: lo que tocaba hoy no cuenta para tu cumplimiento ni tu racha. Recupérate.</p>
+        </div>
       ) : !stats.plan.length ? (
         <div className="empty" style={{ padding: '28px 8px' }}>
           <div className="empty-icon"><IconCheck size={24} /></div>
@@ -221,20 +232,39 @@ function DayPanel({ iso, routines, extras, done, today, toggle, onToday }) {
                   {items.map((item) => {
                     const checked = done.has(doneKey(item.id, iso))
                     return (
-                      <label key={item.id} className={`check-row ${checked ? 'checked' : ''} ${!editable ? 'readonly' : ''} ${isPast && !editable && !checked ? 'missed' : ''}`}>
-                        <input type="checkbox" checked={checked} disabled={!editable} onChange={() => onToggle(item.id)} />
-                        <span className="check-box" aria-hidden="true">{checked && <IconCheck size={14} />}</span>
-                        <span style={{ minWidth: 0 }}>
-                          <span className="check-name">{item.name}</span>
-                          {item.detail && <span className="check-detail">{item.detail}</span>}
-                        </span>
-                      </label>
+                      <div key={item.id} className={`check-item ${item.sets ? 'has-sets' : ''}`}>
+                        <label className={`check-row ${checked ? 'checked' : ''} ${!editable ? 'readonly' : ''} ${isPast && !editable && !checked ? 'missed' : ''}`}>
+                          <input type="checkbox" checked={checked} disabled={!editable} onChange={() => onToggle(item.id)} />
+                          <span className="check-box" aria-hidden="true">{checked && <IconCheck size={14} />}</span>
+                          <span style={{ minWidth: 0 }}>
+                            <span className="check-name">{item.name}</span>
+                            {(item.sets || item.detail) && <span className="check-detail">{[item.sets && `${item.sets} series`, item.detail].filter(Boolean).join(' · ')}</span>}
+                          </span>
+                        </label>
+                        {item.sets > 0 && editable && (
+                          <SetCounter
+                            itemId={item.id}
+                            iso={iso}
+                            sets={item.sets}
+                            checked={checked}
+                            editable={editable}
+                            onComplete={() => !checked && onToggle(item.id)}
+                            onUncomplete={() => checked && onToggle(item.id)}
+                          />
+                        )}
+                      </div>
                     )
                   })}
                 </div>
               </div>
             )
           })}
+          {stats.paused.length > 0 && (
+            <div className="alert alert-warn" style={{ fontSize: 13 }}>
+              <span aria-hidden="true">{PAUSE_REASONS[stats.paused[0].pause.reason]?.emoji}</span>
+              <div>En pausa hoy (no cuenta): {stats.paused.map((x) => x.item.name).join(', ')}.</div>
+            </div>
+          )}
           {stats.done === stats.total && (
             <div className="alert alert-ok"><IconCheck size={18} /><div><b>¡Éxito, lo lograste!</b> Completaste todo lo de este día.</div></div>
           )}
