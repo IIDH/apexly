@@ -176,8 +176,11 @@ button.check-row:active:not(:disabled) { transform: scale(0.99); }
 /* ---------- pausas */
 .pause-card { border-color: color-mix(in oklab, var(--warn) 45%, var(--line)); background: color-mix(in oklab, var(--warn) 8%, var(--surface)); }
 .pause-emoji { font-size: 26px; line-height: 1; }
-.pause-open { align-self: flex-start; }
-.pause-dialog, .plan-dialog { width: min(520px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; }
+.pause-open { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border-radius: 14px; border: 1px dashed var(--line); background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+.pause-open:hover { border-color: var(--primary); background: var(--surface); }
+.pause-open-icon { font-size: 20px; line-height: 1; }
+.pause-open b { display: block; font-size: 14px; }
+.pause-open small { display: block; font-size: 12.5px; color: var(--muted); margin-top: 1px; }
 .pause-pick { display: flex; flex-direction: column; gap: 8px; }
 .pause-routine { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
 .pause-check { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; padding: 3px 0; }
@@ -204,3 +207,82 @@ button.check-row:active:not(:disabled) { transform: scale(0.99); }
 /* ---------- corregir vs. cambiar ejercicio */
 .item-rename { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
 .item-rename .chip { height: 28px; font-size: 12px; }
+
+/* ---------- hoja/diálogo (portal): encabezado y botones fijos, contenido con scroll */
+.sheet { display: flex; flex-direction: column; width: min(520px, 100%); max-height: calc(100dvh - 32px); background: var(--bg); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); overflow: hidden; animation: dcRise 0.35s cubic-bezier(0.22, 0.8, 0.3, 1) both; }
+.sheet-grip { display: none; }
+.sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 20px 20px 14px; border-bottom: 1px solid var(--line); flex: none; }
+.sheet-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 18px 20px 22px; }
+.sheet-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; padding: 12px 20px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--bg); flex: none; }
+.sheet-danger { color: var(--danger); margin-right: auto; }
+.sheet-actions-stack { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; width: 100%; }
+@media (max-width: 600px) {
+  .sheet-backdrop { place-items: end center; padding: 0; }
+  .sheet { width: 100%; max-height: 92dvh; border-radius: 22px 22px 0 0; border-bottom: 0; animation: sheetUp 0.32s cubic-bezier(0.22, 0.8, 0.3, 1) both; }
+  .sheet-grip { display: block; width: 40px; height: 4px; border-radius: 4px; background: var(--line); margin: 10px auto 0; flex: none; }
+  .sheet-head { padding-top: 10px; }
+  .sheet-foot .btn { flex: 1; }
+  .sheet-foot .sheet-danger { flex: 0 0 auto; }
+  .sheet-actions-stack { flex-direction: column-reverse; }
+  .sheet-actions-stack .btn { width: 100%; }
+  .sheet .choice-grid { grid-template-columns: 1fr; }
+}
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: none; } }
+
+/* ---------- día salvado con actividad extra (no corta la racha) */
+.cal-day.st-rescued { background: var(--extra-soft); border-color: color-mix(in oklab, var(--extra) 45%, transparent); }
+.cal-day.st-rescued .cal-num { color: var(--extra); }
+.cal-key.st-rescued { background: var(--extra-soft); border-color: var(--extra); }
+
+/* ---------- racha semanal */
+.week-progress { margin-top: 16px; padding: 12px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.week-dots { display: flex; gap: 6px; margin-top: 8px; }
+.week-dots i { flex: 1; height: 8px; border-radius: 4px; background: var(--line); transition: background 0.3s; }
+.week-dots i.on { background: var(--primary); }
+.week-dots i.saved { background: var(--extra); }
+.days-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.days-grid div { display: flex; flex-direction: column; padding: 12px; border-radius: 12px; background: var(--surface); }
+.days-grid b { font-family: var(--font-display); font-size: 26px; line-height: 1.1; }
+.days-grid span { font-size: 12px; color: var(--muted); margin-top: 2px; }
+@media (max-width: 520px) { .days-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---------- racha como ascenso a la montaña (siempre oscura: estética deportiva) */
+.summit-card { padding: 0; overflow: hidden; background: #0b0b0d; border-color: color-mix(in oklab, #ff7a1a 28%, #26211e); color: #f4ede6; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.04); }
+.summit-scene { position: relative; aspect-ratio: 720 / 300; min-height: 210px; isolation: isolate; }
+.summit-svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.summit-head { position: absolute; top: 18px; left: 20px; right: 20px; display: flex; gap: 14px; align-items: flex-start; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7); }
+.summit-logo { color: #ff7a1a; filter: drop-shadow(0 0 10px rgba(255, 122, 26, 0.45)); flex: none; margin-top: 2px; }
+.summit-eyebrow { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(244, 237, 230, 0.6); }
+.summit-title { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; font-family: var(--font-display); font-weight: 700; font-size: 28px; letter-spacing: -0.02em; line-height: 1.15; margin-top: 2px; }
+.summit-level { font-family: var(--font-body); font-size: 12px; font-weight: 700; letter-spacing: 0; padding: 3px 9px; border-radius: 7px; color: #ffb15a; background: rgba(255, 122, 26, 0.16); border: 1px solid rgba(255, 122, 26, 0.35); text-shadow: none; }
+.summit-sub { font-size: 13.5px; color: rgba(244, 237, 230, 0.78); margin-top: 3px; }
+.summit-goal { position: absolute; right: 16px; bottom: 12px; font-size: 11px; letter-spacing: 0.06em; color: rgba(255, 177, 90, 0.85); text-shadow: 0 1px 8px #000; }
+.summit-marker { transition: transform 0.05s linear; }
+.summit-marker-halo { transform-box: fill-box; transform-origin: center; animation: summitPulse 2.4s ease-in-out infinite; opacity: 0.55; }
+.summit-marker.lit .summit-marker-halo { opacity: 1; }
+.summit-flag.reached { animation: summitWave 1.6s ease-in-out infinite; transform-box: fill-box; }
+@keyframes summitPulse { 0%, 100% { transform: scale(0.85); opacity: 0.7; } 50% { transform: scale(1.25); opacity: 1; } }
+@keyframes summitWave { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+.summit-stats { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; padding: 16px 20px 6px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.summit-stat-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; color: rgba(244, 237, 230, 0.62); }
+.summit-stat-row b { color: #f4ede6; font-weight: 700; }
+.summit-segs { display: flex; gap: 6px; margin-top: 9px; }
+.summit-segs i { flex: 1; height: 6px; border-radius: 4px; background: rgba(255, 255, 255, 0.1); transition: background 0.4s, box-shadow 0.4s; }
+.summit-segs i.on { background: #ff7a1a; box-shadow: 0 0 10px rgba(255, 122, 26, 0.55); }
+.summit-segs i.saved { background: var(--extra); }
+.summit-bar { position: relative; height: 6px; border-radius: 4px; background: rgba(255, 255, 255, 0.1); margin-top: 9px; }
+.summit-bar span { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: linear-gradient(90deg, #ff5e1a, #ffb020); transition: width 0.6s cubic-bezier(0.22, 0.8, 0.3, 1); }
+.summit-bar span.ok { background: linear-gradient(90deg, #1baf7a, #4ad6a0); }
+.summit-bar i { position: absolute; top: -3px; width: 2px; height: 12px; border-radius: 1px; background: rgba(244, 237, 230, 0.5); }
+.summit-next { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 10px 20px 18px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); font-size: 13px; color: rgba(244, 237, 230, 0.75); }
+.summit-next svg { color: #ffb020; flex: none; }
+.summit-next > span:first-of-type { flex: 1 1 180px; min-width: 0; }
+.summit-next b { color: #f4ede6; }
+.summit-next-aside { margin-left: auto; font-size: 12px; color: rgba(244, 237, 230, 0.5); }
+@media (max-width: 560px) {
+  .summit-scene { min-height: 200px; aspect-ratio: auto; height: 220px; }
+  .summit-title { font-size: 23px; }
+  .summit-stats { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .summit-next-aside { margin-left: 0; width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .summit-marker-halo, .summit-flag.reached { animation: none; } }

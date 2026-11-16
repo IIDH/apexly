@@ -107,7 +107,7 @@ export function TrainingProvider({ children }) {
     return true
   }, [done, notify])
 
-  const progress = useMemo(() => (routines ? progressHistory(routines, done, today) : null), [routines, done, today])
+  const progress = useMemo(() => (routines ? progressHistory(routines, done, today, extras ?? []) : null), [routines, done, today, extras])
 
   const value = useMemo(
     () => ({ routines, goals, extras, plans, pauses, done, error, today, progress, reload: load, toggle }),

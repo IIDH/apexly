@@ -2,8 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useApp } from '../context/AppContext'
 import { useTraining } from '../context/TrainingContext'
 import { supabase } from '../lib/supabase'
-import { levelTitle } from '../lib/training'
-import { IconBolt, IconFlame, IconLogo, IconStar, IconTrophy } from './Icons'
+import { STREAK_MILESTONES, levelTitle } from '../lib/training'
+import { IconBolt, IconFlame, IconLogo, IconTrophy } from './Icons'
 
 const Ctx = createContext(() => {})
 
@@ -35,7 +35,7 @@ const CONFETTI = Array.from({ length: 28 }, (_, i) => ({
   color: ['var(--primary)', 'var(--primary-2)', 'var(--ok)', 'var(--text)'][i % 4]
 }))
 
-function CelebrationModal({ kind, level, routineNames, goalTitle, activity, milestone, onClose }) {
+function CelebrationModal({ kind, level, weeks, routineNames, goalTitle, activity, bonusFull, onClose }) {
   const btn = useRef(null)
   useEffect(() => {
     btn.current?.focus()
@@ -53,15 +53,21 @@ function CelebrationModal({ kind, level, routineNames, goalTitle, activity, mile
     },
     streak: {
       icon: <IconFlame size={40} />,
-      eyebrow: 'Nivel 1 · Iniciado',
-      title: '¡Iniciaste una racha!',
-      text: 'Cumpliste tu primer mes completo de entrenamiento. Mantén el ritmo: cada mes cumplido sube tu nivel.'
+      eyebrow: 'Racha · 🔥 semana 1',
+      title: '¡Encendiste tu racha!',
+      text: 'Primer entrenamiento hecho. Cumple todos tus días de rutina de cada semana para sumar semanas; los descansos y las pausas no la cortan. ¡No la dejes apagar!'
+    },
+    streakWeeks: {
+      icon: <IconFlame size={40} />,
+      eyebrow: `Racha · 🔥 ${weeks} semanas`,
+      title: `¡${weeks} semanas de racha!`,
+      text: weeks >= 26 ? 'Esto ya es un estilo de vida. Pocos llegan hasta aquí: sigue subiendo.' : weeks >= 8 ? 'Ya es un hábito. Cada semana cumplida la hace crecer.' : 'Vas muy bien. Cumple tu próxima semana y sigue sumando.'
     },
     level: {
       icon: <IconTrophy size={40} />,
       eyebrow: `Nivel ${level} · ${levelTitle(level ?? 0)}`,
-      title: `¡Subiste a nivel ${level}!`,
-      text: `Llevas ${level} meses seguidos cumpliendo tus rutinas. Sigue así.`
+      title: level === 1 ? '¡Primer mes cumplido!' : `¡Subiste a nivel ${level}!`,
+      text: level === 1 ? 'Completaste al menos el 80 % de tu mes. Cada mes cumplido sube tu nivel.' : `Llevas ${level} meses seguidos cumpliendo tus rutinas. Sigue así.`
     },
     goal: {
       icon: <IconTrophy size={40} />,
@@ -69,19 +75,14 @@ function CelebrationModal({ kind, level, routineNames, goalTitle, activity, mile
       title: '¡Éxito, lo lograste!',
       text: `Alcanzaste tu meta "${goalTitle}". Ponte una nueva y sigue subiendo.`
     },
-    extra: milestone
-      ? {
-          icon: <IconStar size={40} />,
-          eyebrow: `Hito extra · ${milestone}`,
-          title: milestone === 1 ? '¡Tu primera actividad extra!' : `¡${milestone} actividades extra!`,
-          text: `¡Buena! Hiciste más deporte: ${activity} quedó anotado. Los extras no cambian tu racha, pero suman hitos propios.`
-        }
-      : {
-          icon: <IconBolt size={40} />,
-          eyebrow: 'Actividad extra',
-          title: '¡Buena! Hiciste más deporte',
-          text: `${activity} quedó anotado como extra. No suma ni resta a tu racha: es un plus.`
-        }
+    extra: {
+      icon: <IconBolt size={40} />,
+      eyebrow: bonusFull ? 'Actividad extra' : 'Actividad extra · +5 % a tu mes',
+      title: '¡Buena! Hiciste más deporte',
+      text: bonusFull
+        ? `${activity} quedó anotado. Este mes ya tienes el bonus máximo (+10 %), pero si hoy tocaba rutina y no alcanzaste, igual salva tu racha.`
+        : `${activity} quedó anotado: suma +5 % a tu cumplimiento del mes (hasta +10 %) y, si hoy tocaba rutina y no alcanzaste, salva tu racha.`
+    }
   }[kind]
 
   return (
@@ -115,12 +116,33 @@ export function LevelWatcher() {
 
   const level = progress?.streak ?? null
   const saved = profile?.celebrated_level ?? null
+  const weekly = progress?.weekly
+
+  // Racha semanal: festeja al encenderla y en los hitos (una vez por racha)
+  const last = useRef(null)
+  useEffect(() => {
+    if (!weekly || !user) return
+    const prev = last.current
+    last.current = { lit: weekly.lit, weeks: weekly.weeks }
+    if (!prev || !weekly.startedOn) return
+    let c = null
+    if (!prev.lit && weekly.lit) c = { kind: 'streak', id: 'start' }
+    else if (weekly.weeks > prev.weeks && STREAK_MILESTONES.includes(weekly.weeks)) c = { kind: 'streakWeeks', weeks: weekly.weeks, id: weekly.weeks }
+    if (!c) return
+    const key = `apexly:streak:${user.id}:${weekly.startedOn}:${c.id}`
+    try {
+      if (localStorage.getItem(key)) return
+      localStorage.setItem(key, '1')
+    } catch { /* sin almacenamiento: se festeja igual */ }
+    // Pequeña espera: primero se ve "Día completado" y después la racha
+    setTimeout(() => celebrate(c), 900)
+  }, [weekly, user, celebrate])
 
   useEffect(() => {
     if (level === null || saved === null || !user || handled.current === level) return
     if (level === saved) return
     handled.current = level
-    if (level > saved) celebrate(level === 1 ? { kind: 'streak' } : { kind: 'level', level })
+    if (level > saved) celebrate({ kind: 'level', level })
     supabase.from('profiles').update({ celebrated_level: level }).eq('id', user.id).then(() => reloadProfile())
   }, [level, saved, user, celebrate, reloadProfile])
 
@@ -131,6 +153,7 @@ export function useLevel() {
   const { progress } = useTraining()
   return useMemo(() => {
     const level = progress?.streak ?? 0
-    return { level, title: levelTitle(level), best: progress?.best ?? 0 }
+    const weekly = progress?.weekly ?? { weeks: 0, best: 0, lit: false, startedOn: null, days: 0, rescued: 0, thisWeek: { done: 0, planned: 0, rescued: 0 }, totals: { month: 0, year: 0, all: 0 } }
+    return { level, title: levelTitle(level), best: progress?.best ?? 0, weekly }
   }, [progress])
 }

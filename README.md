@@ -9,7 +9,8 @@ Rutinas de entrenamiento en un calendario: checklist diario, historial, metas co
 - **Rutinas:** se asignan a días de la semana y se repiten todas las semanas. Si cambias los días, rigen desde hoy y el historial no se toca.
 - **Calendario:** marca el día actual. Al tocar un día ves su checklist: hoy y los últimos 3 días se pueden marcar, los anteriores son historial de solo lectura y los futuros muestran lo programado.
 - **Éxito:** al completar todo lo del día aparece "¡Éxito, lo lograste!". Lo mismo al alcanzar una meta.
-- **Racha y niveles:** un mes cuenta si completas al menos el 80 % de lo programado. Con 1 mes inicias una racha (nivel 1), con 3 meses seguidos llegas al nivel 3, y así. Un mes bajo el 80 % reinicia la racha; un mes sin nada programado no suma ni corta.
+- **Racha (semanas):** se enciende con tu primer día entrenado. Una semana suma si completas todos sus días de rutina (un día con actividad extra cuenta como salvado). Semanas sin rutina o en pausa no suman ni cortan. Se corta si un día de rutina queda sin completar pasado el plazo de 3 días. También se muestran los días entrenados (en la racha, este mes, este año y en total).
+- **Niveles (meses):** un mes sube un nivel si completas al menos el 80 % de lo programado; cada actividad extra suma +5 % (tope +10 % al mes). Un mes bajo el 80 % vuelve el nivel a cero; un mes sin nada programado no suma ni corta.
 - **Metas:** consistencia mensual (%), días completos al mes o una medida personal con registros (peso, kilos, tiempos…). Cada una tiene su gráfico.
 
 ## Puesta en marcha

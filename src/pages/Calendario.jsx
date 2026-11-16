@@ -2,18 +2,19 @@ import SetCheckRow from '../components/SetCounter'
 import { useMemo, useState } from 'react'
 import ExtraSection from '../components/ExtraSection'
 import PauseCard from '../components/PauseCard'
+import StreakMountain from '../components/StreakMountain'
 import { Link } from 'react-router-dom'
-import { useCelebrate, useLevel } from '../components/Celebration'
-import { IconCheck, IconChevL, IconChevR, IconDumbbell, IconFlame, IconHistory, IconLock, IconPlus } from '../components/Icons'
+import { useCelebrate } from '../components/Celebration'
+import { IconCheck, IconChevL, IconChevR, IconDumbbell, IconHistory, IconLock, IconPlus } from '../components/Icons'
 import PageHead from '../components/PageHead'
 import { useTraining } from '../context/TrainingContext'
 import { pct } from '../lib/format'
 import {
-  MONTH_THRESHOLD, WEEK_ORDER, WEEKDAYS, addDays, canEditDate, dayStats, dayStatus, daysInMonth, doneKey,
-  PAUSE_REASONS, fromISO, longDate, monthLabel, monthStart, remainingToMeet, shiftMonth
+  WEEK_ORDER, WEEKDAYS, addDays, canEditDate, dayStats, dayStatus, daysInMonth, doneKey,
+  PAUSE_REASONS, fromISO, longDate, monthLabel, monthStart, shiftMonth
 } from '../lib/training'
 
-const STATUS_LABEL = { complete: 'Completo', partial: 'Incompleto', missed: 'No realizado', pending: 'Pendiente', planned: 'Programado', rest: 'Descanso', paused: 'En pausa' }
+const STATUS_LABEL = { complete: 'Completo', partial: 'Incompleto', missed: 'No realizado', pending: 'Pendiente', planned: 'Programado', rest: 'Descanso', paused: 'En pausa', rescued: 'Salvado con actividad extra' }
 
 export default function Calendario() {
   const { routines, extras, done, today, toggle, progress, error } = useTraining()
@@ -54,46 +55,9 @@ function Loading() {
 }
 
 // ------------------------------------------------------------ racha y nivel
+// La racha se muestra como un ascenso a la montaña (ver StreakMountain)
 function StreakCard({ progress, routines }) {
-  const { level, title } = useLevel()
-  const current = progress?.current
-  const remaining = current && current.ratio !== null ? remainingToMeet(current, routines) : null
-  const ratio = current?.ratio ?? 0
-
-  return (
-    <div className="card streak-card">
-      <div className="row" style={{ gap: 14, alignItems: 'flex-start' }}>
-        <div className={`streak-flame ${level > 0 ? 'on' : ''}`}><IconFlame size={24} /></div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="dc-mono muted">Racha · nivel {level}</div>
-          <div className="streak-value">
-            {level > 0 ? `${level} ${level === 1 ? 'mes' : 'meses'} seguidos` : 'Aún sin racha'}
-            <span className="badge badge-level">{title}</span>
-          </div>
-          <p className="muted" style={{ fontSize: 13, marginTop: 4 }}>
-            Cada mes en que completes al menos el {pct(MONTH_THRESHOLD)} de lo programado suma un nivel.
-          </p>
-        </div>
-      </div>
-      {current && current.ratio !== null && (
-        <div style={{ marginTop: 16 }}>
-          <div className="row" style={{ justifyContent: 'space-between', fontSize: 13 }}>
-            <span className="muted">Este mes</span>
-            <b className="num">{pct(ratio)} <span className="muted" style={{ fontWeight: 500 }}>· meta {pct(MONTH_THRESHOLD)}</span></b>
-          </div>
-          <div className="progress progress-goal" style={{ marginTop: 8 }}>
-            <span style={{ width: `${Math.min(100, ratio * 100)}%` }} className={ratio >= MONTH_THRESHOLD ? 'ok' : ''} />
-            <i style={{ left: `${MONTH_THRESHOLD * 100}%` }} aria-hidden="true" />
-          </div>
-          <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-            {remaining?.needed
-              ? `Te faltan ${remaining.needed} ejercicio${remaining.needed === 1 ? '' : 's'} este mes para que cuente en tu racha.`
-              : 'Ya aseguraste este mes para tu racha. ¡Sigue sumando!'}
-          </p>
-        </div>
-      )}
-    </div>
-  )
+  return <StreakMountain progress={progress} routines={routines} />
 }
 
 // ------------------------------------------------------------ calendario mensual
@@ -107,7 +71,7 @@ function MonthCalendar({ view, setView, selected, setSelected, routines, extras,
     for (let d = 0; d < daysInMonth(view.year, view.month); d++) {
       const iso = addDays(first, d)
       const stats = dayStats(routines, done, iso)
-      out.push({ iso, day: d + 1, stats, status: dayStatus(stats, iso, today), extras: extraDays.get(iso) ?? 0 })
+      out.push({ iso, day: d + 1, stats, status: dayStatus(stats, iso, today, extraDays.has(iso)), extras: extraDays.get(iso) ?? 0 })
     }
     return out
   }, [view, routines, extras, done, today])
@@ -151,6 +115,7 @@ function MonthCalendar({ view, setView, selected, setSelected, routines, extras,
         <span className="legend-item"><span className="cal-key is-today" />Hoy</span>
         <span className="legend-item"><span className="cal-key key-extra" />Actividad extra</span>
         {cells.some((c) => c?.status === 'paused') && <span className="legend-item"><span className="cal-key st-paused" />En pausa</span>}
+        {cells.some((c) => c?.status === 'rescued') && <span className="legend-item"><span className="cal-key st-rescued" />Salvado con extra</span>}
       </div>
     </div>
   )

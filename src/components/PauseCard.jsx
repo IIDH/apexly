@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTraining } from '../context/TrainingContext'
 import { friendlyError } from '../lib/format'
 import { supabase } from '../lib/supabase'
 import { PAUSE_REASONS, addDays, longDate, pauseCovers } from '../lib/training'
 import { useConfirm } from './ConfirmDialog'
-import { IconEdit, IconInfo, IconX } from './Icons'
+import { IconEdit, IconInfo } from './Icons'
+import Sheet from './Sheet'
 
 const shortDate = (iso) => longDate(iso).replace(/^\S+ /, '')
 
@@ -81,8 +82,9 @@ export default function PauseCard() {
       ))}
 
       {!active.length && (
-        <button className="btn btn-ghost btn-sm pause-open" onClick={() => setEditing({})}>
-          🩹 ¿Lesión, enfermedad o vacaciones? Pausa tu entrenamiento
+        <button className="pause-open" onClick={() => setEditing({})}>
+          <span className="pause-open-icon" aria-hidden="true">🩹</span>
+          <span><b>¿Lesionado o de vacaciones?</b><small>Pausa tu entrenamiento sin perder tu racha</small></span>
         </button>
       )}
 
@@ -105,12 +107,6 @@ function PauseDialog({ pause, onClose, onSaved }) {
   const [end, setEnd] = useState(pause.end_on ?? addDays(today, 6))
   const [note, setNote] = useState(pause.note ?? '')
   const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    const onKey = (e) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
 
   const active = useMemo(
     () => routines.filter((r) => !r.archived_on || r.archived_on > today).map((r) => ({ ...r, items: r.items.filter((i) => !i.archived_on || i.archived_on > today).sort((a, b) => a.position - b.position) })),
@@ -148,15 +144,17 @@ function PauseDialog({ pause, onClose, onSaved }) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal card dc-rise pause-dialog" role="dialog" aria-modal="true" aria-labelledby="pause-title" onClick={(e) => e.stopPropagation()}>
-        <div className="row" style={{ justifyContent: 'space-between' }}>
-          <h3 id="pause-title" className="card-title">{isNew ? 'Pausar entrenamiento' : 'Editar pausa'}</h3>
-          <button className="dc-icon-btn" onClick={onClose} aria-label="Cerrar"><IconX size={16} /></button>
-        </div>
-        <p className="muted" style={{ fontSize: 13, marginTop: 4 }}>Los días en pausa no bajan tu cumplimiento ni cortan tu racha.</p>
-
-        <div className="stack" style={{ gap: 16, marginTop: 16 }}>
+    <Sheet
+      title={isNew ? 'Pausar entrenamiento' : 'Editar pausa'}
+      subtitle="Los días en pausa no bajan tu cumplimiento ni cortan tu racha."
+      onClose={onClose}
+      footer={<>
+        {!isNew && <button type="button" className="btn btn-ghost sheet-danger" onClick={remove}>Eliminar</button>}
+        <button type="button" className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+        <button type="button" className="btn dc-cta" disabled={busy} onClick={save}>{busy ? 'Guardando…' : isNew ? 'Pausar' : 'Guardar'}</button>
+      </>}
+    >
+        <div className="stack" style={{ gap: 18 }}>
           <div className="field">
             <span className="label">Motivo</span>
             <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
@@ -231,15 +229,7 @@ function PauseDialog({ pause, onClose, onSaved }) {
             <input className="input input-sm" maxLength={120} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ej: esguince tobillo derecho" />
           </label>
 
-          <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-            {!isNew ? <button type="button" className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }} onClick={remove}>Eliminar pausa</button> : <span />}
-            <div className="row" style={{ gap: 8 }}>
-              <button type="button" className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-              <button type="button" className="btn dc-cta" disabled={busy} onClick={save}>{busy ? 'Guardando…' : isNew ? 'Pausar' : 'Guardar'}</button>
-            </div>
-          </div>
         </div>
-      </div>
-    </div>
+    </Sheet>
   )
 }

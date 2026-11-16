@@ -3,14 +3,15 @@ import { useApp } from '../context/AppContext'
 import { useTraining } from '../context/TrainingContext'
 import { friendlyError } from '../lib/format'
 import { supabase } from '../lib/supabase'
-import { EXTRA_PRESETS, extraMilestoneAt, extrasOn } from '../lib/training'
+import { EXTRA_BONUS_MAX, EXTRA_PRESETS, extraBonus, extrasOn } from '../lib/training'
 import { useCelebrate } from './Celebration'
 import { useConfirm } from './ConfirmDialog'
 import { IconBolt, IconPlus, IconTrash } from './Icons'
 
 /**
  * Actividades extra del día (fútbol, pádel…). Van aparte de las rutinas:
- * no suman ni restan al cumplimiento ni a la racha.
+ * suman +5 % al cumplimiento del mes (tope +10 %) y salvan la racha de días
+ * si ese día tocaba rutina y no se completó.
  */
 export default function ExtraSection({ iso, today, extras }) {
   const { notify } = useApp()
@@ -43,13 +44,14 @@ export default function ExtraSection({ iso, today, extras }) {
     const { error } = await supabase.from('extra_activities').insert({ done_on: iso, name: n, duration_min: m, note: note.trim() || null })
     setBusy(false)
     if (error) return notify(friendlyError(error), 'error')
-    celebrate({ kind: 'extra', activity: n, milestone: extraMilestoneAt(extras.length + 1) })
+    const [y, mo] = iso.split('-').map(Number)
+    celebrate({ kind: 'extra', activity: n, bonusFull: extraBonus(extras, y, mo, '9999-12-31').bonus >= EXTRA_BONUS_MAX })
     reset()
     reload()
   }
 
   async function remove(x) {
-    if (!(await confirm({ tone: 'warn', title: `¿Borrar "${x.name}"?`, message: 'Se quita de tus actividades extra. Tu racha no cambia.', confirmText: 'Borrar' }))) return
+    if (!(await confirm({ tone: 'warn', title: `¿Borrar "${x.name}"?`, message: 'Se quita de tus actividades extra. Deja de sumar a tu mes y, si salvaba tu racha ese día, ya no la salva.', confirmText: 'Borrar' }))) return
     const { error } = await supabase.from('extra_activities').delete().eq('id', x.id)
     if (error) return notify(friendlyError(error), 'error')
     reload()
@@ -63,7 +65,7 @@ export default function ExtraSection({ iso, today, extras }) {
         <div className="row" style={{ gap: 8 }}>
           <span className="extra-icon"><IconBolt size={14} /></span>
           <b>Extras</b>
-          <span className="muted" style={{ fontSize: 12 }}>no afectan tu racha</span>
+          <span className="muted" style={{ fontSize: 12 }}>+5 % a tu mes · salvan tu racha</span>
         </div>
         {canAdd && !open && <button className="btn btn-ghost btn-sm" onClick={() => setOpen(true)}><IconPlus size={14} /> Anotar</button>}
       </div>

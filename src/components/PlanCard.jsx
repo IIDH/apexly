@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTraining } from '../context/TrainingContext'
 import { friendlyError, pct } from '../lib/format'
 import { supabase } from '../lib/supabase'
 import { addDays, currentPlan, doneKey, longDate, nextMonday, planSummary, planWeek } from '../lib/training'
 import { useConfirm } from './ConfirmDialog'
-import { IconEdit, IconFlag, IconPlus, IconTrophy, IconX } from './Icons'
+import Sheet from './Sheet'
+import { IconEdit, IconFlag, IconPlus, IconTrophy } from './Icons'
 
 const shortDate = (iso) => longDate(iso).replace(/^\S+ /, '')
 const DURATIONS = [null, 4, 6, 8, 12]
@@ -95,24 +96,7 @@ export default function PlanCard({ onCreateRoutine }) {
 }
 
 // ------------------------------------------------------------ modal base
-function Modal({ title, onClose, children }) {
-  useEffect(() => {
-    const onKey = (e) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal card dc-rise plan-dialog" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
-        <div className="row" style={{ justifyContent: 'space-between' }}>
-          <h3 className="card-title">{title}</h3>
-          <button className="dc-icon-btn" onClick={onClose} aria-label="Cerrar"><IconX size={16} /></button>
-        </div>
-        {children}
-      </div>
-    </div>
-  )
-}
+const Modal = (props) => <Sheet {...props} />
 
 function StartPicker({ value, onChange, today }) {
   const monday = nextMonday(today)
@@ -194,8 +178,16 @@ function NewPlanDialog({ current: currentProp, fromPlan, onClose, onDone }) {
   }
 
   return (
-    <Modal title="Nuevo plan" onClose={onClose}>
-      <div className="stack" style={{ gap: 16, marginTop: 14 }}>
+    <Modal
+      title="Nuevo plan"
+      subtitle="Agrupa tus rutinas con fecha de inicio y término."
+      onClose={onClose}
+      footer={<>
+        <button type="button" className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+        <button type="button" className="btn dc-cta" disabled={busy} onClick={save}>{busy ? 'Creando…' : 'Crear plan'}</button>
+      </>}
+    >
+      <div className="stack" style={{ gap: 18 }}>
         <label className="field">
           <span className="label">Nombre</span>
           <input className="input" maxLength={60} value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Fuerza 8 semanas, Verano, Volumen" autoFocus />
@@ -225,10 +217,6 @@ function NewPlanDialog({ current: currentProp, fromPlan, onClose, onDone }) {
           </div>
         )}
         {current && <p className="muted" style={{ fontSize: 12, margin: 0 }}>“{current.name}” se da por terminado {start === today ? 'hoy' : `el ${shortDate(addDays(start, -1))}`}. Tu historial y tu racha se conservan.</p>}
-        <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
-          <button type="button" className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-          <button type="button" className="btn dc-cta" disabled={busy} onClick={save}>{busy ? 'Creando…' : 'Crear plan'}</button>
-        </div>
       </div>
     </Modal>
   )
@@ -262,8 +250,16 @@ function EndPlanDialog({ plan, summary, onClose, onDone }) {
   }
 
   return (
-    <Modal title={`Terminar “${plan.name}”`} onClose={onClose}>
-      <div className="plan-summary">
+    <Modal
+      title={`Terminar “${plan.name}”`}
+      subtitle="Así te fue en este plan."
+      onClose={onClose}
+      footer={<div className="sheet-actions-stack">
+        <button type="button" className="btn dc-cta" disabled={busy} onClick={() => finish(true)}>Terminar y armar el siguiente</button>
+        <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => finish(false)}>Solo terminar</button>
+      </div>}
+    >
+      <div className="plan-summary" style={{ marginTop: 0 }}>
         <div className="plan-big num">{s.ratio != null ? pct(s.ratio) : '—'}<small>cumplimiento</small></div>
         <div className="plan-stats">
           <div><b className="num">{s.weeks}</b><span>semana{s.weeks === 1 ? '' : 's'}</span></div>
@@ -273,11 +269,6 @@ function EndPlanDialog({ plan, summary, onClose, onDone }) {
         </div>
       </div>
       <p className="muted" style={{ fontSize: 13, marginTop: 12 }}>Sus {own.length} rutina{own.length === 1 ? '' : 's'} dejan de aparecer en el calendario. Tu historial, tus metas y tu racha se conservan.</p>
-      <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-        <button type="button" className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-        <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => finish(false)}>Solo terminar</button>
-        <button type="button" className="btn dc-cta" disabled={busy} onClick={() => finish(true)}>Terminar y armar el siguiente</button>
-      </div>
     </Modal>
   )
 }
@@ -332,8 +323,16 @@ function EditPlanDialog({ plan, onClose, onDone }) {
   }
 
   return (
-    <Modal title="Editar plan" onClose={onClose}>
-      <div className="stack" style={{ gap: 16, marginTop: 14 }}>
+    <Modal
+      title="Editar plan"
+      onClose={onClose}
+      footer={<>
+        {plan.start_on > today && <button type="button" className="btn btn-ghost sheet-danger" onClick={cancelPlan}>Cancelar plan</button>}
+        <button type="button" className="btn btn-ghost" onClick={onClose}>Cerrar</button>
+        <button type="button" className="btn dc-cta" disabled={busy} onClick={save}>{busy ? 'Guardando…' : 'Guardar'}</button>
+      </>}
+    >
+      <div className="stack" style={{ gap: 18 }}>
         <label className="field">
           <span className="label">Nombre</span>
           <input className="input" maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
@@ -346,13 +345,6 @@ function EditPlanDialog({ plan, onClose, onDone }) {
             {hasEnd && <input type="date" className="input input-sm" style={{ width: 160 }} min={plan.start_on} value={end} onChange={(e) => e.target.value && setEnd(e.target.value)} aria-label="Último día del plan" />}
           </div>
           <span className="muted" style={{ fontSize: 12 }}>Para extender el plan, mueve la fecha: sus rutinas siguen apareciendo hasta el nuevo término.</span>
-        </div>
-        <div className="row" style={{ justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-          {plan.start_on > today ? <button type="button" className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }} onClick={cancelPlan}>Cancelar plan</button> : <span />}
-          <div className="row" style={{ gap: 8 }}>
-            <button type="button" className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-            <button type="button" className="btn dc-cta" disabled={busy} onClick={save}>{busy ? 'Guardando…' : 'Guardar'}</button>
-          </div>
         </div>
       </div>
     </Modal>
