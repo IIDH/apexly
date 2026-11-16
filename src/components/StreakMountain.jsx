@@ -93,40 +93,40 @@ export default function StreakMountain({ progress, routines }) {
         <svg className="summit-svg" viewBox="0 0 720 300" preserveAspectRatio="xMidYMax slice" role="img" aria-label={`Ascenso: ${Math.round(shown * 100)} % hacia ${next} semanas de racha`}>
           <defs>
             <linearGradient id={`sky${uid}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#0b0b0d" />
-              <stop offset="0.7" stopColor="#1a120d" />
-              <stop offset="1" stopColor="#2a160b" />
+              <stop offset="0" style={{ stopColor: 'var(--sm-sky1)' }} />
+              <stop offset="0.7" style={{ stopColor: 'var(--sm-sky2)' }} />
+              <stop offset="1" style={{ stopColor: 'var(--sm-sky3)' }} />
             </linearGradient>
             <radialGradient id={`glow${uid}`} cx="0.72" cy="0.1" r="0.55">
-              <stop offset="0" stopColor="#ff6a1a" stopOpacity="0.32" />
+              <stop offset="0" style={{ stopColor: '#ff6a1a', stopOpacity: 'var(--sm-glow)' }} />
               <stop offset="1" stopColor="#ff6a1a" stopOpacity="0" />
             </radialGradient>
             <linearGradient id={`rock${uid}`} x1="0.2" y1="0" x2="0.8" y2="1">
-              <stop offset="0" stopColor="#8a6a56" />
-              <stop offset="0.3" stopColor="#4a372c" />
-              <stop offset="0.7" stopColor="#221a16" />
-              <stop offset="1" stopColor="#0c0b0b" />
+              <stop offset="0" style={{ stopColor: 'var(--sm-rock1)' }} />
+              <stop offset="0.3" style={{ stopColor: 'var(--sm-rock2)' }} />
+              <stop offset="0.7" style={{ stopColor: 'var(--sm-rock3)' }} />
+              <stop offset="1" style={{ stopColor: 'var(--sm-rock4)' }} />
             </linearGradient>
             <linearGradient id={`back${uid}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#2a211c" />
-              <stop offset="1" stopColor="#0e0d0d" />
+              <stop offset="0" style={{ stopColor: 'var(--sm-back1)' }} />
+              <stop offset="1" style={{ stopColor: 'var(--sm-back2)' }} />
             </linearGradient>
             <linearGradient id={`shade${uid}`} x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" stopColor="#000" stopOpacity="0.15" />
-              <stop offset="1" stopColor="#000" stopOpacity="0.65" />
+              <stop offset="0" style={{ stopColor: 'var(--sm-shade)', stopOpacity: 0.12 }} />
+              <stop offset="1" style={{ stopColor: 'var(--sm-shade)', stopOpacity: 'var(--sm-shade-o)' }} />
             </linearGradient>
             <linearGradient id={`fog${uid}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#0b0b0d" stopOpacity="0" />
-              <stop offset="1" stopColor="#0b0b0d" stopOpacity="0.95" />
+              <stop offset="0" style={{ stopColor: 'var(--sm-bg)', stopOpacity: 0 }} />
+              <stop offset="1" style={{ stopColor: 'var(--sm-bg)', stopOpacity: 0.95 }} />
             </linearGradient>
             {/* Relieve de roca: ruido fractal iluminado (luz fría arriba a la izquierda,
                 contraluz naranja desde la derecha) y mezclado con el color de la roca */}
             <filter id={`relief${uid}`} x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
               <feTurbulence type="fractalNoise" baseFrequency="0.008 0.03" numOctaves="6" seed="11" result="n" />
-              <feDiffuseLighting in="n" lightingColor="#e9ddd2" surfaceScale="9" result="key">
+              <feDiffuseLighting in="n" style={{ lightingColor: 'var(--sm-key)' }} surfaceScale="9" result="key">
                 <feDistantLight azimuth="225" elevation="32" />
               </feDiffuseLighting>
-              <feDiffuseLighting in="n" lightingColor="#ff7a1a" surfaceScale="9" result="rim">
+              <feDiffuseLighting in="n" style={{ lightingColor: 'var(--sm-rim)' }} surfaceScale="9" result="rim">
                 <feDistantLight azimuth="20" elevation="18" />
               </feDiffuseLighting>
               <feComposite in="key" in2="rim" operator="arithmetic" k2="0.85" k3="0.4" result="light" />
@@ -148,12 +148,12 @@ export default function StreakMountain({ progress, routines }) {
           <rect width="720" height="300" fill={`url(#sky${uid})`} />
           <rect width="720" height="300" fill={`url(#glow${uid})`} />
           <path d={BACK} fill={`url(#back${uid})`} filter={`url(#relief${uid})`} opacity="0.75" />
-          <ellipse cx="300" cy="215" rx="320" ry="26" fill="#d9cfc7" opacity="0.06" filter={`url(#soft${uid})`} />
+          <ellipse cx="300" cy="215" rx="320" ry="26" style={{ fill: 'var(--sm-mist)', opacity: 'var(--sm-mist-o)' }} filter={`url(#soft${uid})`} />
 
           <path d={PEAK} fill={`url(#rock${uid})`} filter={`url(#relief${uid})`} />
           <path d={SHADE} fill={`url(#shade${uid})`} />
-          {RIDGES.map((d) => <path key={d} d={d} fill="none" stroke="#f3e2d2" strokeOpacity="0.22" strokeWidth="0.9" strokeLinejoin="round" strokeLinecap="round" />)}
-          <path d="M462,44 L470,30 L478,40 L472,48 Z" fill="#f2e6dc" opacity="0.5" />
+          {RIDGES.map((d) => <path key={d} d={d} fill="none" style={{ stroke: 'var(--sm-ridge)', strokeOpacity: 'var(--sm-ridge-o)' }} strokeWidth="0.9" strokeLinejoin="round" strokeLinecap="round" />)}
+          <path d="M462,44 L470,30 L478,40 L472,48 Z" style={{ fill: 'var(--sm-snow)', opacity: 'var(--sm-snow-o)' }} />
 
           {/* Ruta: base tenue y tramo recorrido luminoso */}
           <path ref={routeRef} d={ROUTE} fill="none" stroke="#ff7a1a" strokeOpacity="0.22" strokeWidth="2" strokeDasharray="3 6" strokeLinecap="round" />
@@ -161,7 +161,7 @@ export default function StreakMountain({ progress, routines }) {
             <path d={ROUTE} fill="none" stroke="#ff8a2a" strokeWidth="2.6" strokeLinecap="round" filter={`url(#neon${uid})`} strokeDasharray={`${len} ${len}`} strokeDashoffset={len * (1 - shown)} />
           )}
           {dots.map((d) => (
-            <circle key={d.p} cx={d.x} cy={d.y} r="3.4" fill={shown >= d.p ? '#ffb15a' : '#3a2a20'} stroke="#ff8a2a" strokeOpacity={shown >= d.p ? 0.9 : 0.4} strokeWidth="1.2" />
+            <circle key={d.p} cx={d.x} cy={d.y} r="3.4" style={{ fill: shown >= d.p ? '#ffb15a' : 'var(--sm-dot-off)' }} stroke="#ff8a2a" strokeOpacity={shown >= d.p ? 0.9 : 0.4} strokeWidth="1.2" />
           ))}
 
           {/* Cumbre: bandera del próximo hito */}
@@ -213,7 +213,7 @@ export default function StreakMountain({ progress, routines }) {
           >
             <div className="summit-stat-row">
               <b className="num">{pct(ratio)}</b>
-              <span>en lo que va del mes · meta {pct(MONTH_THRESHOLD)}</span>
+              <span>del mes · meta {pct(MONTH_THRESHOLD)}</span>
             </div>
             <div className="summit-bar">
               <span style={{ width: `${Math.min(100, ratio * 100)}%` }} className={ratio >= MONTH_THRESHOLD ? 'ok' : ''} />
