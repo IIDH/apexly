@@ -1,53 +1,107 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useLevel } from './Celebration'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useApp } from '../context/AppContext'
+import { supabase } from '../lib/supabase'
+import { useCelebrate, useLevel } from './Celebration'
 import { IconLogo, IconTrophy } from './Icons'
 import { pct } from '../lib/format'
-import { MONTH_THRESHOLD, STREAK_MILESTONES, remainingToMeet } from '../lib/training'
+import { MONTH_THRESHOLD, PEAK_LEVELS, climbState, levelTitle, remainingToMeet, todayISO } from '../lib/training'
 
-// Silueta de la cordillera (viewBox 720×300)
-const PEAK = 'M0,300 L0,236 L38,228 L70,232 L104,214 L138,218 L170,200 L206,203 L238,184 L262,188 L290,166 L318,160 L342,138 L362,142 L384,116 L404,104 L420,84 L436,78 L450,56 L462,44 L470,30 L478,40 L490,52 L500,66 L516,74 L532,96 L552,106 L570,128 L596,142 L620,164 L652,176 L684,192 L720,198 L720,300 Z'
-const BACK = 'M0,300 L0,196 L60,178 L110,186 L170,150 L220,168 L270,132 L320,150 L360,124 L410,140 L460,110 L520,96 L560,118 L610,92 L660,112 L720,100 L720,300 Z'
-// Cara en sombra (lado derecho del pico)
-const SHADE = 'M470,30 L478,40 L490,52 L500,66 L516,74 L532,96 L552,106 L570,128 L596,142 L620,164 L652,176 L684,192 L720,198 L720,300 L500,300 L486,180 L476,90 Z'
-// Aristas iluminadas
-const RIDGES = [
-  'M470,30 L466,42 L463,56 L457,66 L454,82 L447,96 L445,112 L438,128',
-  'M470,30 L474,48 L479,62 L481,80 L486,98 L488,120',
-  'M436,78 L428,92 L421,104 L414,122',
-  'M404,104 L396,118 L389,134 L381,148',
-  'M516,74 L519,92 L523,108',
-  'M342,138 L336,152 L329,166'
+// ------------------------------------------------------------ geometría de la cordillera
+// Mundo de 1440×300; la vista (720 de ancho) sigue al escalador.
+const WORLD = 1440
+const VIEW = 720
+const CAMP = { x: 46, y: 284 }
+const PEAKS = [
+  { x: 210, y: 206 }, { x: 370, y: 188 }, { x: 530, y: 170 }, { x: 700, y: 148 },
+  { x: 890, y: 122 }, { x: 1100, y: 92 }, { x: 1330, y: 56 }
 ]
-// Ruta de ascenso: de la base al pico
-const ROUTE = 'M26,290 C96,284 140,268 190,262 C246,256 238,232 286,222 C336,212 318,190 360,180 C400,170 384,146 412,132 C440,118 428,96 448,78 C460,66 464,48 470,32'
+// Pseudoaleatorio estable (la montaña es siempre la misma)
+const rnd = (n) => {
+  const v = Math.sin(n * 127.1 + 311.7) * 43758.5453
+  return v - Math.floor(v)
+}
+const lerp = (a, b, t) => a + (b - a) * t
+const SADDLES = PEAKS.slice(0, -1).map((p, i) => {
+  const q = PEAKS[i + 1]
+  return { x: lerp(p.x, q.x, 0.52), y: Math.max(p.y, q.y) + 44 + rnd(i) * 14 }
+})
+
+/** Puntos irregulares de una ladera entre a y b. */
+function slope(a, b, seed, n = 7, amp = 7) {
+  const pts = []
+  for (let i = 1; i < n; i++) {
+    const t = i / n
+    const j = (rnd(seed * 31 + i) - 0.5) * amp * 2 * Math.sin(Math.PI * t)
+    pts.push([lerp(a.x, b.x, t) + (rnd(seed * 17 + i) - 0.5) * 6, lerp(a.y, b.y, t) + j])
+  }
+  return pts
+}
+
+function buildRange() {
+  const pts = [[0, 300], [0, 262], [CAMP.x - 20, CAMP.y - 18]]
+  const shades = []
+  let from = { x: CAMP.x - 20, y: CAMP.y - 18 }
+  PEAKS.forEach((p, i) => {
+    pts.push(...slope(from, p, i * 2 + 1), [p.x, p.y])
+    const to = SADDLES[i] ?? { x: WORLD, y: 196 }
+    const down = slope(p, to, i * 2 + 2)
+    pts.push(...down, [to.x, to.y])
+    // Cara en sombra: del pico hacia la derecha
+    // (triángulo: arista derecha hasta el collado y de vuelta por el interior del macizo)
+    const inner = { x: lerp(p.x, to.x, 0.22), y: lerp(p.y, 300, 0.8) }
+    shades.push(`M${p.x},${p.y} ${down.map(([x, y]) => `L${x.toFixed(1)},${y.toFixed(1)}`).join(' ')} L${to.x},${to.y} L${lerp(to.x, inner.x, 0.5).toFixed(1)},${lerp(to.y, 300, 0.5).toFixed(1)} L${inner.x.toFixed(1)},${inner.y.toFixed(1)} Z`)
+    from = to
+  })
+  pts.push([WORLD, 300])
+  return { range: `M${pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' L')} Z`, shades }
+}
+const { range: RANGE, shades: SHADES } = buildRange()
+const BACK = (() => {
+  const pts = [[0, 300], [0, 210]]
+  for (let x = 40; x <= WORLD; x += 40) pts.push([x, 120 + rnd(x) * 70 - (x / WORLD) * 40])
+  pts.push([WORLD, 300])
+  return `M${pts.map(([x, y]) => `${x},${y.toFixed(1)}`).join(' L')} Z`
+})()
+// Aristas que bajan desde cada cumbre
+const RIDGES = PEAKS.flatMap((p, i) => [
+  `M${p.x},${p.y} ${slope(p, { x: p.x - 26 - rnd(i) * 14, y: p.y + 70 }, i + 40, 6, 4).map(([x, y]) => `L${x.toFixed(1)},${y.toFixed(1)}`).join(' ')}`,
+  `M${p.x},${p.y} ${slope(p, { x: p.x + 12, y: p.y + 60 }, i + 60, 5, 3).map(([x, y]) => `L${x.toFixed(1)},${y.toFixed(1)}`).join(' ')}`
+])
+// Tramos de la ruta: campamento → Iniciado, y de cada cumbre a la siguiente pasando por el collado
+const LEGS = PEAKS.map((b, i) => {
+  if (i === 0) return `M${CAMP.x},${CAMP.y} C${CAMP.x + 70},${CAMP.y - 4} ${b.x - 90},${b.y + 64} ${b.x},${b.y + 3}`
+  const a = PEAKS[i - 1]
+  const s = SADDLES[i - 1]
+  return `M${a.x},${a.y + 3} C${a.x + 24},${a.y + 26} ${s.x - 34},${s.y - 8} ${s.x},${s.y - 8} S${b.x - 30},${b.y + 40} ${b.x},${b.y + 3}`
+})
 
 const easeOut = (t) => 1 - Math.pow(1 - t, 3)
 const reduceMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+const monthName = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('es', { month: 'long' })
 
 /**
- * Racha como ascenso: la cumbre es el próximo hito (en semanas) y el marcador
- * avanza por la ruta según las semanas cumplidas más el avance de esta semana.
+ * Racha de niveles como una cordillera de 7 cumbres (Iniciado → Apex). El
+ * escalador avanza cada día con el cumplimiento del mes y conquista una cumbre
+ * al cerrar el mes que sube su nivel. En Apex la montaña se vuelve dorada y se
+ * puede empezar una nueva expedición (prestigio ★).
  */
 export default function StreakMountain({ progress, routines }) {
-  const { level, title, weekly: w } = useLevel()
+  const { user, profile, reloadProfile } = useApp()
+  const { raw, level, best, weekly: w, expedition, stars, base, summits } = useLevel()
+  const celebrate = useCelebrate()
   const uid = useId().replace(/:/g, '')
-  const routeRef = useRef(null)
-  const [len, setLen] = useState(0)
+  const legRefs = useRef([])
+  const [lens, setLens] = useState([])
 
   const current = progress?.current
   const ratio = current?.ratio ?? null
-  const remaining = current && current.ratio !== null ? remainingToMeet(current, routines) : null
+  const remaining = current && ratio !== null ? remainingToMeet(current, routines) : null
   const week = w.thisWeek
   const weekDone = week.done + week.rescued
-  const left = Math.max(week.planned - weekDone, 0)
+  const c = climbState(level, ratio, Math.max(best - base, level))
+  const target = c.leg + c.frac // posición continua 0..7
 
-  // Cumbre = próximo hito; el avance de la semana en curso cuenta como fracción
-  const next = STREAK_MILESTONES.find((m) => m > w.weeks) ?? Math.ceil((w.weeks + 1) / 52) * 52
-  const frac = week.planned ? Math.min(weekDone / week.planned, 1) : 0
-  const target = w.lit ? Math.min((w.weeks + (frac < 1 ? frac : 0)) / next, 1) : 0
-  const checkpoints = STREAK_MILESTONES.filter((m) => m < next).map((m) => m / next)
-
-  // El marcador se desliza desde donde estaba hasta el nuevo avance
+  // Animación: el escalador se desliza hasta la nueva posición
   const [shown, setShown] = useState(target)
   const from = useRef(target)
   useEffect(() => {
@@ -59,8 +113,9 @@ export default function StreakMountain({ progress, routines }) {
     }
     let raf
     const t0 = performance.now()
+    const dur = Math.min(2600, 1200 + Math.abs(target - start) * 600)
     const tick = (now) => {
-      const k = Math.min((now - t0) / 1400, 1)
+      const k = Math.min((now - t0) / dur, 1)
       const v = start + (target - start) * easeOut(k)
       from.current = v
       setShown(v)
@@ -70,40 +125,106 @@ export default function StreakMountain({ progress, routines }) {
     return () => cancelAnimationFrame(raf)
   }, [target])
 
-  useLayoutEffect(() => { if (routeRef.current) setLen(routeRef.current.getTotalLength()) }, [])
-  const at = (p) => (routeRef.current && len ? routeRef.current.getPointAtLength(len * Math.max(0, Math.min(1, p))) : { x: 26, y: 290 })
-  const marker = at(shown)
-  const dots = useMemo(() => checkpoints.map((p) => ({ p, ...at(p) })), [len, next]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Cumbre recién conquistada: bandera que se clava + destello (una vez por cumbre)
+  const [planting, setPlanting] = useState(null)
+  useEffect(() => {
+    if (!user) return
+    const key = `apexly:peaks:${user.id}:${expedition}`
+    let seen = null
+    try {
+      const v = localStorage.getItem(key)
+      seen = v === null ? null : Number(v) // primera visita: solo se recuerda, sin animar
+    } catch { /* sin almacenamiento */ }
+    try { localStorage.setItem(key, String(c.conquered)) } catch { /* sin almacenamiento */ }
+    if (seen !== null && !Number.isNaN(seen) && c.conquered > seen) {
+      setPlanting(c.conquered - 1)
+      const t = setTimeout(() => setPlanting(null), 3200)
+      return () => clearTimeout(t)
+    }
+  }, [c.conquered, expedition, user])
 
-  const headline = !w.lit ? 'Empieza tu ascenso' : w.weeks ? `${w.weeks} ${w.weeks === 1 ? 'semana' : 'semanas'}` : 'Semana 1'
-  const sub = w.lit
-    ? `${w.days} ${w.days === 1 ? 'entrenamiento acumulado' : 'entrenamientos acumulados'}${w.rescued ? ` · ${w.rescued} salvado${w.rescued === 1 ? '' : 's'} con extra` : ''}`
-    : `Entrena hoy para encender tu racha${w.best ? ` · tu mejor: ${w.best} ${w.best === 1 ? 'semana' : 'semanas'}` : ''}`
-  const hito = !w.lit
-    ? 'Completa tu primer entrenamiento y el marcador empieza a subir.'
-    : left && w.weeks + 1 >= next
-      ? `${next} semanas · ${left === 1 ? 'te falta 1 entrenamiento' : `te faltan ${left} entrenamientos`} esta semana`
-      : left
-        ? `${next} semanas · ${left === 1 ? '1 entrenamiento' : `${left} entrenamientos`} para cerrar esta semana`
-        : `${next} semanas · semana cumplida, ¡sigue subiendo!`
+  const recording = useRef(null)
+  // Datos del perfil: la racha se cortó bajo el inicio de la expedición → vuelve al campamento;
+  // primera llegada a Apex en esta expedición → se registra la cumbre y se festeja.
+  useEffect(() => {
+    if (!user || !profile) return
+    if ((profile.expedition_base ?? 0) > raw) {
+      supabase.from('profiles').update({ expedition_base: 0 }).eq('id', user.id).then(() => reloadProfile())
+      return
+    }
+    if (c.atApex && !summits.some((s) => s.expedition === expedition) && recording.current !== expedition) {
+      recording.current = expedition // evita registrar y festejar dos veces mientras se recarga el perfil
+      const next = [...summits, { expedition, on: todayISO() }]
+      supabase.from('profiles').update({ summits: next }).eq('id', user.id).then(({ error }) => {
+        if (!error) {
+          reloadProfile()
+          celebrate({ kind: 'apex', stars })
+        }
+      })
+    }
+  }, [c.atApex, raw, profile, user, summits, expedition, stars, celebrate, reloadProfile])
+
+  async function newExpedition() {
+    const { error } = await supabase.from('profiles').update({ expedition: expedition + 1, expedition_base: raw }).eq('id', user.id)
+    if (error) return
+    try { localStorage.setItem(`apexly:peaks:${user.id}:${expedition + 1}`, '0') } catch { /* sin almacenamiento */ }
+    reloadProfile()
+    celebrate({ kind: 'expedition', stars: stars + 1 })
+  }
+
+  useLayoutEffect(() => {
+    setLens(legRefs.current.map((el) => (el ? el.getTotalLength() : 0)))
+  }, [])
+  const pointAt = (pos) => {
+    const i = Math.max(0, Math.min(LEGS.length - 1, Math.floor(pos === LEGS.length ? LEGS.length - 1 : pos)))
+    const t = pos >= LEGS.length ? 1 : pos - i
+    const el = legRefs.current[i]
+    if (!el || !lens[i]) return i === 0 && t === 0 ? CAMP : PEAKS[Math.min(i, PEAKS.length - 1)]
+    return el.getPointAtLength(lens[i] * Math.max(0, Math.min(1, t)))
+  }
+  const marker = pointAt(shown)
+  // La vista sigue al escalador (y muestra la cumbre siguiente)
+  const offset = Math.max(0, Math.min(WORLD - VIEW, marker.x - VIEW * 0.42))
+
+  const peakTitle = (i) => levelTitle(PEAK_LEVELS[i])
+  const starTxt = stars ? ` ${'★'.repeat(Math.min(stars, 5))}${stars > 5 ? `×${stars}` : ''}` : ''
+  const monthLeft = remaining?.needed ?? 0
+  const today = todayISO()
+  const nextMonth = (() => {
+    const d = new Date(`${today.slice(0, 7)}-01T12:00:00`)
+    d.setMonth(d.getMonth() + 1)
+    return d.toLocaleDateString('es', { day: 'numeric', month: 'long' })
+  })()
+
+  const headline = c.atApex ? `Apex${starTxt}` : level ? `${levelTitle(level)}${starTxt}` : 'Campamento base'
+  const sub = `Racha: ${w.lit ? (w.weeks ? `${w.weeks} ${w.weeks === 1 ? 'semana' : 'semanas'}` : 'semana 1') : 'sin encender'} · ${w.days} ${w.days === 1 ? 'entrenamiento' : 'entrenamientos'}`
+  const hito = c.atApex
+    ? c.secured
+      ? `En la cima · ${c.monthsAtTop + 1} ${c.monthsAtTop ? 'meses' : 'mes'} · ${monthName(today)} asegurado`
+      : `En la cima ${c.monthsAtTop ? `hace ${c.monthsAtTop} ${c.monthsAtTop === 1 ? 'mes' : 'meses'}` : 'desde este mes'} · mantén el ${pct(MONTH_THRESHOLD)} para no bajar${monthLeft ? ` (faltan ${monthLeft} ejercicios)` : ''}`
+    : c.secured
+      ? `${c.nextTitle} asegurado: lo conquistas el ${nextMonth}`
+      : ratio === null
+        ? `${c.nextTitle} · arma tu rutina para empezar a subir`
+        : `${c.nextTitle} · ${c.next - level > 1 ? `${c.next - level} meses al ${pct(MONTH_THRESHOLD)}` : `llega al ${pct(MONTH_THRESHOLD)} en ${monthName(today)}`}${monthLeft ? ` · faltan ${monthLeft} ejercicios` : ''}`
 
   return (
-    <div className="card summit-card">
+    <div className={`card summit-card exp-${((expedition - 1) % 4) + 1} ${c.atApex ? 'is-apex' : ''}`}>
       <div className="summit-scene">
-        <svg className="summit-svg" viewBox="0 0 720 300" preserveAspectRatio="xMidYMax slice" role="img" aria-label={`Ascenso: ${Math.round(shown * 100)} % hacia ${next} semanas de racha`}>
+        <svg className="summit-svg" viewBox={`0 0 ${VIEW} 300`} preserveAspectRatio="xMidYMax slice" role="img" aria-label={`Expedición ${expedition}: ${c.atApex ? 'en la cima de Apex' : `rumbo a ${c.nextTitle}, ${Math.round(c.frac * 100)} % del tramo`}`}>
           <defs>
             <linearGradient id={`sky${uid}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" style={{ stopColor: 'var(--sm-sky1)' }} />
               <stop offset="0.7" style={{ stopColor: 'var(--sm-sky2)' }} />
               <stop offset="1" style={{ stopColor: 'var(--sm-sky3)' }} />
             </linearGradient>
-            <radialGradient id={`glow${uid}`} cx="0.72" cy="0.1" r="0.55">
-              <stop offset="0" style={{ stopColor: '#ff6a1a', stopOpacity: 'var(--sm-glow)' }} />
-              <stop offset="1" stopColor="#ff6a1a" stopOpacity="0" />
+            <radialGradient id={`glow${uid}`} cx="0.75" cy="0.05" r="0.6">
+              <stop offset="0" style={{ stopColor: 'var(--sm-glow-c)', stopOpacity: 'var(--sm-glow)' }} />
+              <stop offset="1" style={{ stopColor: 'var(--sm-glow-c)', stopOpacity: 0 }} />
             </radialGradient>
-            <linearGradient id={`rock${uid}`} x1="0.2" y1="0" x2="0.8" y2="1">
+            <linearGradient id={`rock${uid}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" style={{ stopColor: 'var(--sm-rock1)' }} />
-              <stop offset="0.3" style={{ stopColor: 'var(--sm-rock2)' }} />
+              <stop offset="0.35" style={{ stopColor: 'var(--sm-rock2)' }} />
               <stop offset="0.7" style={{ stopColor: 'var(--sm-rock3)' }} />
               <stop offset="1" style={{ stopColor: 'var(--sm-rock4)' }} />
             </linearGradient>
@@ -112,15 +233,14 @@ export default function StreakMountain({ progress, routines }) {
               <stop offset="1" style={{ stopColor: 'var(--sm-back2)' }} />
             </linearGradient>
             <linearGradient id={`shade${uid}`} x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" style={{ stopColor: 'var(--sm-shade)', stopOpacity: 0.12 }} />
+              <stop offset="0" style={{ stopColor: 'var(--sm-shade)', stopOpacity: 0.1 }} />
               <stop offset="1" style={{ stopColor: 'var(--sm-shade)', stopOpacity: 'var(--sm-shade-o)' }} />
             </linearGradient>
             <linearGradient id={`fog${uid}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" style={{ stopColor: 'var(--sm-bg)', stopOpacity: 0 }} />
               <stop offset="1" style={{ stopColor: 'var(--sm-bg)', stopOpacity: 0.95 }} />
             </linearGradient>
-            {/* Relieve de roca: ruido fractal iluminado (luz fría arriba a la izquierda,
-                contraluz naranja desde la derecha) y mezclado con el color de la roca */}
+            {/* Relieve de roca: ruido fractal con luz principal y contraluz */}
             <filter id={`relief${uid}`} x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
               <feTurbulence type="fractalNoise" baseFrequency="0.008 0.03" numOctaves="6" seed="11" result="n" />
               <feDiffuseLighting in="n" style={{ lightingColor: 'var(--sm-key)' }} surfaceScale="9" result="key">
@@ -134,64 +254,89 @@ export default function StreakMountain({ progress, routines }) {
               <feComposite in="lit" in2="SourceAlpha" operator="in" />
             </filter>
             <filter id={`soft${uid}`}><feGaussianBlur stdDeviation="10" /></filter>
-            <filter id={`neon${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <filter id={`neon${uid}`} x="-20%" y="-50%" width="140%" height="200%">
               <feGaussianBlur stdDeviation="3.2" result="b" />
               <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
             </filter>
             <radialGradient id={`dot${uid}`}>
               <stop offset="0" stopColor="#fff3e6" />
-              <stop offset="0.35" stopColor="#ffb15a" />
-              <stop offset="1" stopColor="#ff6a1a" stopOpacity="0" />
+              <stop offset="0.35" style={{ stopColor: 'var(--sm-accent-2)' }} />
+              <stop offset="1" style={{ stopColor: 'var(--sm-accent)', stopOpacity: 0 }} />
             </radialGradient>
           </defs>
 
-          <rect width="720" height="300" fill={`url(#sky${uid})`} />
-          <rect width="720" height="300" fill={`url(#glow${uid})`} />
-          <path d={BACK} fill={`url(#back${uid})`} filter={`url(#relief${uid})`} opacity="0.75" />
-          <ellipse cx="300" cy="215" rx="320" ry="26" style={{ fill: 'var(--sm-mist)', opacity: 'var(--sm-mist-o)' }} filter={`url(#soft${uid})`} />
+          <rect width={VIEW} height="300" fill={`url(#sky${uid})`} />
+          <rect width={VIEW} height="300" fill={`url(#glow${uid})`} />
+          {c.atApex && <g className="summit-stars">{Array.from({ length: 24 }, (_, i) => <circle key={i} cx={rnd(i + 5) * VIEW} cy={rnd(i + 50) * 110} r={rnd(i + 90) * 1.3 + 0.4} style={{ animationDelay: `${rnd(i) * 3}s` }} />)}</g>}
 
-          <path d={PEAK} fill={`url(#rock${uid})`} filter={`url(#relief${uid})`} />
-          <path d={SHADE} fill={`url(#shade${uid})`} />
-          {RIDGES.map((d) => <path key={d} d={d} fill="none" style={{ stroke: 'var(--sm-ridge)', strokeOpacity: 'var(--sm-ridge-o)' }} strokeWidth="0.9" strokeLinejoin="round" strokeLinecap="round" />)}
-          <path d="M462,44 L470,30 L478,40 L472,48 Z" style={{ fill: 'var(--sm-snow)', opacity: 'var(--sm-snow-o)' }} />
-
-          {/* Ruta: base tenue y tramo recorrido luminoso */}
-          <path ref={routeRef} d={ROUTE} fill="none" stroke="#ff7a1a" strokeOpacity="0.22" strokeWidth="2" strokeDasharray="3 6" strokeLinecap="round" />
-          {len > 0 && (
-            <path d={ROUTE} fill="none" stroke="#ff8a2a" strokeWidth="2.6" strokeLinecap="round" filter={`url(#neon${uid})`} strokeDasharray={`${len} ${len}`} strokeDashoffset={len * (1 - shown)} />
-          )}
-          {dots.map((d) => (
-            <circle key={d.p} cx={d.x} cy={d.y} r="3.4" style={{ fill: shown >= d.p ? '#ffb15a' : 'var(--sm-dot-off)' }} stroke="#ff8a2a" strokeOpacity={shown >= d.p ? 0.9 : 0.4} strokeWidth="1.2" />
-          ))}
-
-          {/* Cumbre: bandera del próximo hito */}
-          <g transform="translate(470 32)" className={shown >= 1 ? 'summit-flag reached' : 'summit-flag'}>
-            <line x1="0" y1="0" x2="0" y2="-22" stroke="#ffb15a" strokeWidth="1.6" />
-            <path d="M0,-22 L15,-17 L0,-12 Z" fill="#ff7a1a" />
-          </g>
-
-          {/* Marcador del usuario */}
-          {len > 0 && (
-            <g className={`summit-marker ${w.lit ? 'lit' : ''}`} transform={`translate(${marker.x} ${marker.y})`}>
-              <circle r="16" fill={`url(#dot${uid})`} className="summit-marker-halo" />
-              <circle r="5.2" fill="#fff6ec" stroke="#ff7a1a" strokeWidth="2" />
+          <g className="summit-world" style={{ transform: `translateX(${-offset}px)` }}>
+            <g className="summit-terrain">
+              <path d={BACK} fill={`url(#back${uid})`} filter={`url(#relief${uid})`} opacity="0.75" />
+              <ellipse cx={WORLD / 2} cy="220" rx={WORLD / 2} ry="26" style={{ fill: 'var(--sm-mist)', opacity: 'var(--sm-mist-o)' }} filter={`url(#soft${uid})`} />
+              <path d={RANGE} fill={`url(#rock${uid})`} filter={`url(#relief${uid})`} />
+              {SHADES.map((d) => <path key={d} d={d} fill={`url(#shade${uid})`} />)}
+              {RIDGES.map((d) => <path key={d} d={d} fill="none" style={{ stroke: 'var(--sm-ridge)', strokeOpacity: 'var(--sm-ridge-o)' }} strokeWidth="0.9" strokeLinejoin="round" strokeLinecap="round" />)}
+              {PEAKS.map((p, i) => <path key={i} d={`M${p.x - 7},${p.y + 11} L${p.x},${p.y} L${p.x + 7},${p.y + 9} L${p.x + 2},${p.y + 15} Z`} style={{ fill: 'var(--sm-snow)', opacity: 'var(--sm-snow-o)' }} />)}
             </g>
-          )}
-          <rect y="230" width="720" height="70" fill={`url(#fog${uid})`} />
+
+            {/* Campamento base */}
+            <g transform={`translate(${CAMP.x} ${CAMP.y})`} className="summit-camp">
+              <path d="M-9,0 L0,-12 L9,0 Z" style={{ fill: 'var(--sm-accent)' }} opacity="0.85" />
+              <path d="M-2.5,0 L0,-4 L2.5,0 Z" fill="#000" opacity="0.4" />
+            </g>
+
+            {/* Ruta: tramos punteados y lo recorrido en naranja luminoso */}
+            {LEGS.map((d, i) => (
+              <path key={`b${i}`} ref={(el) => (legRefs.current[i] = el)} d={d} fill="none" style={{ stroke: 'var(--sm-accent)' }} strokeOpacity="0.28" strokeWidth="1.8" strokeDasharray="3 6" strokeLinecap="round" />
+            ))}
+            {lens.length > 0 && LEGS.map((d, i) => {
+              const t = Math.max(0, Math.min(1, shown - i))
+              if (t <= 0) return null
+              return <path key={`g${i}`} d={d} fill="none" style={{ stroke: 'var(--sm-accent)' }} strokeWidth="2.6" strokeLinecap="round" filter={`url(#neon${uid})`} strokeDasharray={`${lens[i]} ${lens[i]}`} strokeDashoffset={lens[i] * (1 - t)} />
+            })}
+
+            {/* Cumbres: bandera encendida (conquistada), de récord o pendiente */}
+            {PEAKS.map((p, i) => {
+              const done = i < c.conquered
+              const record = !done && i < c.recordPeaks
+              const apex = i === PEAKS.length - 1
+              return (
+                <g key={i} transform={`translate(${p.x} ${p.y})`} className={`peak ${done ? 'done' : record ? 'record' : 'todo'} ${planting === i ? 'planting' : ''} ${apex ? 'apex' : ''}`}>
+                  {planting === i && <circle className="peak-burst" r="6" />}
+                  <g className="peak-flag">
+                    <line x1="0" y1="0" x2="0" y2={apex ? -26 : -18} strokeWidth="1.5" />
+                    <path d={apex ? 'M0,-26 L18,-20 L0,-14 Z' : 'M0,-18 L12,-14 L0,-10 Z'} />
+                  </g>
+                  <text y={apex ? -32 : -24} textAnchor="middle" className="peak-label">{apex ? 'APEX' : peakTitle(i)}</text>
+                </g>
+              )
+            })}
+
+            {/* Escalador */}
+            {lens.length > 0 && (
+              <g className={`summit-marker ${level || w.lit ? 'lit' : ''}`} transform={`translate(${marker.x} ${marker.y})`}>
+                <circle r="16" fill={`url(#dot${uid})`} className="summit-marker-halo" />
+                <circle r="5.2" fill="#fff6ec" style={{ stroke: 'var(--sm-accent)' }} strokeWidth="2" />
+              </g>
+            )}
+          </g>
+          <rect y="236" width={VIEW} height="64" fill={`url(#fog${uid})`} />
         </svg>
 
         <div className="summit-head">
           <span className="summit-logo" aria-hidden="true"><IconLogo size={30} /></span>
           <div style={{ minWidth: 0 }}>
-            <div className="summit-eyebrow dc-mono">Apexly · tu ascenso</div>
+            <div className="summit-eyebrow dc-mono">Apexly · expedición {expedition}{starTxt}</div>
             <div className="summit-title">
               {headline}
-              <span className="summit-level" title="Meses seguidos con al menos el 80 %">Nivel {level} · {title}</span>
+              <span className="summit-level" title="Meses seguidos con al menos el 80 %">Nivel {level}{c.atApex && c.monthsAtTop ? ` · ${c.monthsAtTop} en la cima` : ''}</span>
             </div>
             <div className="summit-sub">{sub}</div>
           </div>
         </div>
-        <div className="summit-goal dc-mono" aria-hidden="true">{w.lit ? `${Math.round(shown * 100)} %` : '0 %'} → {next} sem</div>
+        <div className="summit-goal dc-mono" aria-hidden="true">
+          {c.atApex ? `★ cima · ${c.monthsAtTop + 1} ${c.monthsAtTop ? 'meses' : 'mes'}` : `${c.conquered}/7 cumbres · ${Math.round(c.frac * 100)} % → ${c.nextTitle}`}
+        </div>
       </div>
 
       <div className="summit-stats">
@@ -207,10 +352,7 @@ export default function StreakMountain({ progress, routines }) {
           </div>
         </div>
         {ratio !== null && (
-          <div
-            className="summit-stat"
-            title={`${current.bonus > 0 ? `Rutinas ${pct(current.base)} + ${pct(current.bonus)} por actividades extra. ` : ''}${remaining?.needed ? `Te faltan ${remaining.needed} ejercicios este mes para subir de nivel.` : 'Mes asegurado para tu nivel.'}`}
-          >
+          <div className="summit-stat" title={current.bonus > 0 ? `Rutinas ${pct(current.base)} + ${pct(current.bonus)} por actividades extra` : undefined}>
             <div className="summit-stat-row">
               <b className="num">{pct(ratio)}</b>
               <span>del mes · meta {pct(MONTH_THRESHOLD)}</span>
@@ -225,9 +367,14 @@ export default function StreakMountain({ progress, routines }) {
 
       <div className="summit-next">
         <IconTrophy size={16} />
-        <span><b>Próximo hito:</b> {hito}</span>
-        {ratio !== null && remaining?.needed > 0 && <span className="summit-next-aside">Para subir de nivel: {remaining.needed} ejercicios más este mes</span>}
+        <span><b>{c.atApex ? 'Cumbre conquistada:' : 'Próxima cumbre:'}</b> {hito}</span>
+        {c.atApex && (
+          <button type="button" className="btn btn-sm summit-expedition" onClick={newExpedition}>
+            Nueva expedición {'★'.repeat(Math.min(stars + 1, 5))}
+          </button>
+        )}
       </div>
     </div>
   )
 }
+

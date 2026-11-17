@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useApp } from '../context/AppContext'
 import { useTraining } from '../context/TrainingContext'
 import { supabase } from '../lib/supabase'
-import { STREAK_MILESTONES, levelTitle } from '../lib/training'
+import { PEAK_LEVELS, STREAK_MILESTONES, levelTitle } from '../lib/training'
 import { IconBolt, IconFlame, IconLogo, IconTrophy } from './Icons'
 
 const Ctx = createContext(() => {})
@@ -35,7 +35,8 @@ const CONFETTI = Array.from({ length: 28 }, (_, i) => ({
   color: ['var(--primary)', 'var(--primary-2)', 'var(--ok)', 'var(--text)'][i % 4]
 }))
 
-function CelebrationModal({ kind, level, weeks, routineNames, goalTitle, activity, bonusFull, onClose }) {
+function CelebrationModal({ kind, level, weeks, stars = 0, routineNames, goalTitle, activity, bonusFull, onClose }) {
+  const starTxt = stars ? ` ${'★'.repeat(Math.min(stars, 5))}` : ''
   const btn = useRef(null)
   useEffect(() => {
     btn.current?.focus()
@@ -65,9 +66,23 @@ function CelebrationModal({ kind, level, weeks, routineNames, goalTitle, activit
     },
     level: {
       icon: <IconTrophy size={40} />,
-      eyebrow: `Nivel ${level} · ${levelTitle(level ?? 0)}`,
-      title: level === 1 ? '¡Primer mes cumplido!' : `¡Subiste a nivel ${level}!`,
-      text: level === 1 ? 'Completaste al menos el 80 % de tu mes. Cada mes cumplido sube tu nivel.' : `Llevas ${level} meses seguidos cumpliendo tus rutinas. Sigue así.`
+      eyebrow: `Nivel ${level} · ${levelTitle(level ?? 0)}${starTxt}`,
+      title: PEAK_LEVELS.includes(level) ? `¡Conquistaste ${levelTitle(level)}!` : `¡Subiste a nivel ${level}!`,
+      text: PEAK_LEVELS.includes(level)
+        ? `Nueva cumbre en tu montaña: ${level} ${level === 1 ? 'mes cumplido' : 'meses seguidos cumpliendo'}. Tu bandera ya está arriba; la siguiente cumbre te espera.`
+        : `Llevas ${level} meses seguidos cumpliendo tus rutinas. Sigue subiendo hacia la próxima cumbre.`
+    },
+    apex: {
+      icon: <IconTrophy size={40} />,
+      eyebrow: `Nivel 12 · Apex${starTxt}`,
+      title: '¡Conquistaste la montaña!',
+      text: 'Un año entero de constancia: eres Apex. Mantén la cima cada mes o empieza una nueva expedición para ganar una estrella de prestigio.'
+    },
+    expedition: {
+      icon: <IconLogo size={40} />,
+      eyebrow: `Expedición ${stars + 1}${starTxt}`,
+      title: '¡Nueva expedición!',
+      text: 'Otra montaña, los mismos títulos y una estrella más. Tu cumbre anterior queda en tu galería. ¡A subir!'
     },
     goal: {
       icon: <IconTrophy size={40} />,
@@ -142,18 +157,30 @@ export function LevelWatcher() {
     if (level === null || saved === null || !user || handled.current === level) return
     if (level === saved) return
     handled.current = level
-    if (level > saved) celebrate({ kind: 'level', level })
+    const base = Math.min(profile?.expedition_base ?? 0, level)
+    const eff = level - base
+    const stars = (profile?.expedition ?? 1) - 1
+    // Apex lo festeja la montaña al registrar la cumbre (si existe la columna de expediciones)
+    const apexHandled = eff === 12 && Array.isArray(profile?.summits)
+    if (level > saved && !apexHandled) celebrate(eff === 12 ? { kind: 'apex', stars } : { kind: 'level', level: eff, stars })
     supabase.from('profiles').update({ celebrated_level: level }).eq('id', user.id).then(() => reloadProfile())
-  }, [level, saved, user, celebrate, reloadProfile])
+  }, [level, saved, user, profile, celebrate, reloadProfile])
 
   return null
 }
 
 export function useLevel() {
   const { progress } = useTraining()
+  const { profile } = useApp()
   return useMemo(() => {
-    const level = progress?.streak ?? 0
+    const raw = progress?.streak ?? 0
+    // Expedición: el nivel se cuenta desde que empezó (si la racha se cortó, vuelve a 0)
+    const base0 = profile?.expedition_base ?? 0
+    const base = raw < base0 ? 0 : base0
+    const level = raw - base
+    const expedition = profile?.expedition ?? 1
+    const summits = Array.isArray(profile?.summits) ? profile.summits : []
     const weekly = progress?.weekly ?? { weeks: 0, best: 0, lit: false, startedOn: null, days: 0, rescued: 0, thisWeek: { done: 0, planned: 0, rescued: 0 }, totals: { month: 0, year: 0, all: 0 } }
-    return { level, title: levelTitle(level), best: progress?.best ?? 0, weekly }
-  }, [progress])
+    return { raw, level, title: levelTitle(level), best: progress?.best ?? 0, weekly, expedition, stars: expedition - 1, base, summits }
+  }, [progress, profile])
 }

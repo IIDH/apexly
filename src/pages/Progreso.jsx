@@ -7,14 +7,14 @@ import PageHead from '../components/PageHead'
 import { useTraining } from '../context/TrainingContext'
 import { pct } from '../lib/format'
 import {
-  EXTRA_BONUS_MAX, MONTH_THRESHOLD, extraBonus, addDays, dayStats, doneKey, fromISO, levelTitle, monthShortLabel, monthStart, planFor, shiftMonth
+  EXTRA_BONUS_MAX, MONTH_THRESHOLD, PEAK_LEVELS, extraBonus, addDays, dayStats, doneKey, fromISO, levelTitle, monthShortLabel, monthStart, planFor, shiftMonth
 } from '../lib/training'
 
 const MILESTONES = [1, 2, 3, 4, 6, 9, 12]
 
 export default function Progreso() {
   const { routines, extras, done, today, progress } = useTraining()
-  const { level, title, best, weekly: w } = useLevel()
+  const { level, title, best, weekly: w, expedition, stars, summits } = useLevel()
 
   const months = useMemo(() => (progress?.months ?? []).slice(-12).map((m) => ({
     ...m,
@@ -105,6 +105,31 @@ export default function Progreso() {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="card dc-rise gallery-card" style={{ marginTop: 18 }}>
+        <div className="card-head">
+          <div>
+            <h3 className="card-title">Galería de cumbres</h3>
+            <p className="card-sub">Expedición {expedition}{stars ? ` · ${'★'.repeat(Math.min(stars, 5))} de prestigio` : ''}. Cada cumbre se conquista al cerrar un mes que sube tu nivel.</p>
+          </div>
+        </div>
+        <div className="gallery-peaks">
+          {PEAK_LEVELS.map((l) => (
+            <div key={l} className={`gallery-peak ${level >= l ? 'on' : ''} ${l === 12 ? 'apex' : ''}`} title={level >= l ? 'Conquistada' : `Nivel ${l}`}>
+              <svg viewBox="0 0 40 30" aria-hidden="true"><path d="M2,28 L14,12 L19,17 L26,6 L38,28 Z" /><path className="flag" d="M26,6 L26,0 L32,2 L26,4" /></svg>
+              <b>{levelTitle(l)}</b>
+              <span className="dc-mono">{l} {l === 1 ? 'mes' : 'meses'}</span>
+            </div>
+          ))}
+        </div>
+        {summits.length > 0 && (
+          <div className="gallery-trophies">
+            {summits.map((x) => (
+              <span key={x.expedition} className="badge badge-level">🏔️ Expedición {x.expedition} · Apex · {new Date(`${x.on}T12:00:00`).toLocaleDateString('es', { month: 'short', year: 'numeric' })}</span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-2 dc-rise" style={{ marginTop: 18 }}>

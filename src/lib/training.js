@@ -349,3 +349,30 @@ export function nextMonday(today = todayISO()) {
   const wd = weekdayOf(today)
   return wd === 1 ? today : addDays(today, (8 - wd) % 7)
 }
+
+// ------------------------------------------------------------ montaña de niveles
+/** Las 7 cumbres de la cordillera: el nivel (meses seguidos) en que se conquista cada una. */
+export const PEAK_LEVELS = [1, 2, 3, 4, 6, 9, 12]
+export const APEX_LEVEL = 12
+
+/**
+ * Dónde va el escalador en la cordillera.
+ * - leg: tramo actual (0 = del campamento base a Iniciado … 6 = hacia Apex)
+ * - frac: avance dentro del tramo (meses cumplidos + el mes en curso hacia el 80 %)
+ * - secured: el mes en curso ya llegó al 80 % (la cumbre se conquista al cerrar el mes)
+ * - atApex / monthsAtTop: en la cima y cuántos meses lleva manteniéndola
+ */
+export function climbState(level, monthRatio, best = 0) {
+  const recordPeaks = PEAK_LEVELS.filter((l) => l <= best).length
+  const f = monthRatio == null ? 0 : Math.min(monthRatio / MONTH_THRESHOLD, 1)
+  if (level >= APEX_LEVEL) {
+    return { atApex: true, leg: PEAK_LEVELS.length - 1, frac: 1, conquered: PEAK_LEVELS.length, next: null, nextTitle: null, secured: f >= 1, monthFrac: f, monthsAtTop: level - APEX_LEVEL, recordPeaks }
+  }
+  const leg = PEAK_LEVELS.findIndex((l) => l > level)
+  const prev = leg === 0 ? 0 : PEAK_LEVELS[leg - 1]
+  const next = PEAK_LEVELS[leg]
+  // Justo antes de la cumbre se queda a un paso: se conquista al cerrar el mes
+  const month = level + 1 === next ? Math.min(f, 0.94) : f
+  const frac = Math.min((level - prev + month) / (next - prev), 0.97)
+  return { atApex: false, leg, frac, conquered: leg, next, nextTitle: levelTitle(next), secured: f >= 1, monthFrac: f, monthsAtTop: 0, recordPeaks }
+}
